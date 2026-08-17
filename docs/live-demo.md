@@ -13,6 +13,25 @@ The best way for anyone (curators, developers) to verify this project is the
 > The explorer link is the most important proof. The live demo lets a reviewer
 > open the app directly and test it themselves.
 
+## Current status
+
+- [x] Godot web build committed to the **`gh-pages` branch** (root).
+- [x] `master` branch contains the full source + docs + evidence.
+- [ ] **One manual step:** enable GitHub Pages on the repo:
+      `Settings → Pages → Deploy from a branch → branch: gh-pages → / (root) → Save`.
+      URL will be: `https://dmt041104111003.github.io/lab3-godot-cardano-testnet/`
+- [ ] *(optional)* Deploy the bridge so the browser demo can also submit
+      transactions (see Step 2 below). Without it, the web demo shows live
+      reads; submission needs the desktop app or a hosted bridge.
+
+## What the browser build can do
+
+The web build reads live Preprod data directly from **Blockfrost** (CORS-enabled,
+using a public Preprod demo key embedded in the build) — no hosted backend needed
+for balance/network/tx-status. Submissions are sent to the bridge URL; on the
+static demo that shows a clear "bridge unreachable" message until a hosted bridge
+is deployed.
+
 ## How the web build talks to Cardano
 
 Browser builds cannot call Koios directly (Koios sends no

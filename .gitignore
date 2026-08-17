@@ -1,0 +1,19 @@
+# ---- secrets ----
+.env
+backend/.env
+
+# ---- node ----
+node_modules/
+npm-debug.log*
+
+# ---- godot ----
+godot/.godot/
+godot/*.import
+.godot/
+
+# ---- os / editors ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

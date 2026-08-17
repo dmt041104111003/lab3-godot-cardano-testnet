@@ -1,0 +1,23 @@
+{
+  "name": "lab3-godot-cardano-bridge",
+  "version": "1.0.0",
+  "description": "Minimal local signing bridge for the LAB3 Godot x Cardano testnet demo. Godot initiates the workflow; this bridge signs and submits the real Cardano testnet transaction.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "key": "node src/scripts/gen-wallet.js",
+    "fund": "node src/scripts/fund-wallet.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@meshsdk/core": "^1.9.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}

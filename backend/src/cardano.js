@@ -1,4 +1,4 @@
-import { AppWallet, MeshTxBuilder, KoiosProvider, BlockfrostProvider, resolvePrivateKey } from '@meshsdk/core';
+import { AppWallet, MeshTxBuilder, KoiosProvider, BlockfrostProvider } from '@meshsdk/core';
 import { config } from './config.js';
 
 const KOIOS_HOSTS = {
@@ -44,10 +44,14 @@ export async function getWalletAddresses() {
  * Builds and signs a minimal Cardano testnet transaction that carries the
  * quest-completion metadata under label 674. Change (and fee) return to the
  * bridge wallet. Returns the signed tx hex ready for submission.
+ *
+ * Signing is done by AppWallet.signTx() (not resolvePrivateKey) because the
+ * wallet derives the exact payment/stake keys that own the selected UTxOs.
  */
 export async function buildAndSignProofTx(metadata) {
   const provider = createProvider();
-  const { paymentAddress } = await getWalletAddresses();
+  const wallet = await createWallet();
+  const paymentAddress = wallet.getPaymentAddress();
 
   const utxos = await provider.fetchAddressUTxOs(paymentAddress);
   if (!utxos || utxos.length === 0) {
@@ -58,13 +62,14 @@ export async function buildAndSignProofTx(metadata) {
 
   const txBuilder = new MeshTxBuilder({ fetcher: provider, submitter: provider });
 
-  const signedTxHex = await txBuilder
+  const unsignedTxHex = await txBuilder
     .setNetwork(config.network)
     .metadataValue(674, metadata)
     .changeAddress(paymentAddress)
     .selectUtxosFrom(utxos)
-    .signingKey(resolvePrivateKey(config.mnemonic))
     .complete();
+
+  const signedTxHex = await wallet.signTx(unsignedTxHex);
 
   return { signedTxHex, paymentAddress };
 }
@@ -77,13 +82,16 @@ export async function submitProof({ questId, playerAddress }) {
   const provider = createProvider();
   const { paymentAddress, rewardAddress } = await getWalletAddresses();
 
+  const addr = playerAddress || '';
   const metadata = {
     project: 'LAB3 Godot Cardano Testnet Demo',
     event: 'quest_completed',
     quest_id: questId || 'demo_001',
     network: config.network,
-    player_address: playerAddress || '',
-    bridge_wallet: paymentAddress,
+    // Cardano metadata strings are capped at 64 bytes, so full addresses are
+    // split across two fields (concatenate a+b to recover the full address).
+    player_addr_a: addr.slice(0, 54),
+    player_addr_b: addr.slice(54, 108),
     tag: 'LAB3_GODOT_CARDANO_TRL5_DEMO',
   };
 
@@ -102,10 +110,10 @@ export async function submitProof({ questId, playerAddress }) {
 }
 
 // ---------------------------------------------------------------------------
-// Transaction status (public Koios reads, no key required)
+// Transaction status / public reads (Koios, no key required)
 // ---------------------------------------------------------------------------
 
-async function koiosJson(p, { method = 'GET', body } = {}) {
+export async function koiosJson(p, { method = 'GET', body } = {}) {
   const res = await fetch(`${KOIOS_HOSTS[config.network]}/api/v1/${p}`, {
     method,
     headers: { 'Content-Type': 'application/json' },

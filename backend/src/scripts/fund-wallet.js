@@ -20,8 +20,14 @@ const provider = new BlockfrostProvider(config.blockfrostApiKey);
 
 let balanceLovelace = 0;
 try {
-  const details = await provider.fetchAccountInfo(paymentAddress);
-  balanceLovelace = details?.balance ?? 0;
+  const utxos = await provider.fetchAddressUTxOs(paymentAddress);
+  for (const utxo of utxos) {
+    for (const amt of utxo.output.amount) {
+      if (amt.unit === 'lovelace') {
+        balanceLovelace += Number(amt.quantity);
+      }
+    }
+  }
 } catch {
   balanceLovelace = 0;
 }

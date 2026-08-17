@@ -1,0 +1,22 @@
+; Engine configuration file.
+; LAB3 Godot x Cardano Testnet Demo
+; Requires Godot 4.x
+
+config_version=5
+
+[application]
+
+config/name="LAB3 Godot x Cardano Testnet Demo"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=1152
+window/size/viewport_height=720
+window/stretch/mode="disabled"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

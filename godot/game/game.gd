@@ -31,10 +31,25 @@ var poll_phase := ""
 var poll_count := 0
 
 func _ready() -> void:
+	_ensure_input()
 	_build_screens()
 	_build_fade()
 	_show_screen("menu")
 	_apply_profile_to_ui()
+
+func _ensure_input() -> void:
+	# Guarantee WASD + Space work (browser focus / default map fallback).
+	_add_key("ui_left", KEY_A)
+	_add_key("ui_right", KEY_D)
+	_add_key("ui_up", KEY_W)
+	_add_key("ui_accept", KEY_SPACE)
+
+func _add_key(action: String, key: Key) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var ev := InputEventKey.new()
+	ev.physical_keycode = key
+	InputMap.action_add_event(action, ev)
 
 func _build_fade() -> void:
 	fade = ColorRect.new()

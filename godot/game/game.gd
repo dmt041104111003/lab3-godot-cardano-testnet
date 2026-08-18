@@ -32,10 +32,18 @@ var poll_count := 0
 
 func _ready() -> void:
 	_ensure_input()
+	theme = ui_theme.theme
+	_build_background()
 	_build_screens()
 	_build_fade()
 	_show_screen("menu")
 	_apply_profile_to_ui()
+
+func _build_background() -> void:
+	var backdrop := preload("res://ui/starfield.gd").new()
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(backdrop)
+	move_child(backdrop, 0)
 
 func _ensure_input() -> void:
 	# Guarantee WASD + Space work (browser focus / default map fallback).
@@ -79,6 +87,12 @@ func _label(text: String, size: int, color: Color = Color.WHITE) -> Label:
 	l.add_theme_color_override("font_color", color)
 	return l
 
+func _centered_label(text: String, size: int, color: Color = Color.WHITE) -> Label:
+	var l := _label(text, size, color)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
 func _button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
@@ -120,77 +134,98 @@ func _build_screens() -> void:
 
 func _build_menu() -> void:
 	var s := _screen("menu")
-	var root := MarginContainer.new()
+	var root := CenterContainer.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 40)
-	root.add_theme_constant_override("margin_top", 60)
 	s.add_child(root)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(560, 620)
+	root.add_child(panel)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 14)
-	root.add_child(v)
-	v.add_child(_label("LAB3 Godot x Cardano Game", 34, COLOR_TITLE))
-	v.add_child(_label("Run, jump, complete quests and earn verifiable Cardano achievements.", 16, Color("#94a3b8")))
-	v.add_child(Label.new())
-	ui.menu_player = _label("", 16, COLOR_INFO)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	panel.add_child(v)
+	var eyebrow := _centered_label("ON-CHAIN ADVENTURE", 11, Color("#73f7de"))
+	v.add_child(eyebrow)
+	v.add_child(_centered_label("CATALYST", 42, Color("#f4fbff")))
+	v.add_child(_centered_label("QUEST", 30, Color("#ffd166")))
+	var hero := TextureRect.new()
+	hero.texture = load("res://assets/player/alienBlue_stand.png")
+	hero.custom_minimum_size = Vector2(128, 128)
+	hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hero.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	v.add_child(hero)
+	v.add_child(_centered_label("Explore the village. Defeat monsters.\nMint your victories on Cardano.", 11, Color("#9db1c8")))
+	ui.menu_player = _label("", 12, COLOR_INFO)
+	ui.menu_player.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(ui.menu_player)
-	v.add_child(_button("Play", func(): _start_run()))
-	v.add_child(_button("Player Profile", func(): _transition_to("profile")))
-	v.add_child(_button("Achievements", func(): _refresh_achievements(); _transition_to("achievements")))
-	v.add_child(_button("Settings / About", func(): _transition_to("settings")))
+	v.add_child(_button("PLAY", func(): _start_run()))
+	v.add_child(_button("PLAYER PROFILE", func(): _transition_to("profile")))
+	v.add_child(_button("ACHIEVEMENTS", func(): _refresh_achievements(); _transition_to("achievements")))
+	v.add_child(_button("SETTINGS", func(): _transition_to("settings")))
+
+func _center_panel(parent: Control) -> VBoxContainer:
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	parent.add_child(cc)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(680, 0)
+	cc.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	panel.add_child(v)
+	return v
 
 func _build_profile() -> void:
 	var s := _screen("profile")
-	var root := MarginContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 60)
-	root.add_theme_constant_override("margin_top", 50)
-	s.add_child(root)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 12)
-	root.add_child(v)
-	v.add_child(_label("Player Profile", 28, COLOR_TITLE))
-	v.add_child(_label("Login with your Cardano wallet to create your player account.", 15, Color("#94a3b8")))
+	var v := _center_panel(s)
+	v.add_child(_centered_label("PLAYER PROFILE", 22, COLOR_TITLE))
+	v.add_child(_centered_label("Your identity, progress and on-chain achievements.", 11, Color("#94a3b8")))
 	var rn := _row()
-	rn.add_child(_label("Name:", 16))
+	rn.add_child(_label("PLAYER NAME", 11))
 	ui.profile_name = LineEdit.new()
-	ui.profile_name.custom_minimum_size.x = 300
+	ui.profile_name.custom_minimum_size.x = 380
+	ui.profile_name.placeholder_text = "Choose your adventurer name"
 	rn.add_child(ui.profile_name)
 	v.add_child(rn)
-	ui.profile_stats = _label("", 15, COLOR_INFO)
+	ui.profile_stats = _label("", 13, COLOR_INFO)
 	v.add_child(ui.profile_stats)
 	var rb := _row()
-	rb.add_child(_button("Login with Wallet (CIP-30)", func(): _login_wallet()))
-	rb.add_child(_button("Continue as Guest", func():
+	rb.add_child(_button("LOGIN WITH WALLET (CIP-30)", func(): _login_wallet()))
+	rb.add_child(_button("GUEST", func():
 		profile.player_name = ui.profile_name.text.strip_edges()
 		profile.address = ""
 		profile.save_profile()
 		_apply_profile_to_ui()
 		_transition_to("menu")
 	))
-	rb.add_child(_button("Back", func(): _transition_to("menu")))
+	rb.add_child(_button("BACK", func(): _transition_to("menu")))
 	v.add_child(rb)
-	ui.profile_msg = _label("", 14)
+	ui.profile_msg = _label("", 11)
 	v.add_child(ui.profile_msg)
 
 func _build_play() -> void:
 	var s := _screen("play")
-	var top := MarginContainer.new()
+	var top := PanelContainer.new()
 	top.anchor_right = 1.0
-	top.offset_top = 8
-	top.offset_bottom = 40
+	top.offset_left = 16
+	top.offset_right = -16
+	top.offset_top = 14
+	top.offset_bottom = 72
 	top.add_theme_constant_override("margin_left", 16)
 	top.add_theme_constant_override("margin_right", 16)
 	s.add_child(top)
 	var h := HBoxContainer.new()
 	top.add_child(h)
-	ui.play_quest = _label("", 17, COLOR_TITLE)
+	h.add_theme_constant_override("separation", 18)
+	ui.play_quest = _label("", 13, Color("#73f7de"))
 	h.add_child(ui.play_quest)
-	ui.play_progress = _label("", 14, COLOR_INFO)
+	ui.play_progress = _label("", 11, COLOR_INFO)
 	h.add_child(ui.play_progress)
-	ui.inventory = _label("", 14, COLOR_INFO)
+	ui.inventory = _label("", 10, Color("#ffd166"))
 	h.add_child(ui.inventory)
 	h.add_child(Label.new())
-	var back := _button("Menu", func(): _stop_run())
+	var back := _button("EXIT", func(): _stop_run())
 	back.size_flags_horizontal = Control.SIZE_SHRINK_END
 	h.add_child(back)
 	# online chat
@@ -224,21 +259,15 @@ func _build_play() -> void:
 
 func _build_verify() -> void:
 	var s := _screen("verify")
-	var root := MarginContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 80)
-	root.add_theme_constant_override("margin_top", 90)
-	s.add_child(root)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 12)
-	root.add_child(v)
-	v.add_child(_label("Milestone Complete!", 30, COLOR_OK))
+	var v := _center_panel(s)
+	v.add_child(_centered_label("MILESTONE COMPLETE", 25, COLOR_OK))
+	v.add_child(_centered_label("Your adventure is becoming permanent.", 11, Color("#94a3b8")))
 	ui.verify_quest = _label("", 18)
 	v.add_child(ui.verify_quest)
 	ui.verify_xp = _label("", 16, COLOR_INFO)
 	v.add_child(ui.verify_xp)
 	v.add_child(HSeparator.new())
-	v.add_child(_label("Cardano verification", 20, COLOR_TITLE))
+	v.add_child(_label("CARDANO VERIFICATION", 15, COLOR_TITLE))
 	ui.verify_status = _label("", 15, COLOR_WARN)
 	v.add_child(ui.verify_status)
 	ui.verify_proof = _label("", 13, COLOR_INFO)
@@ -246,14 +275,14 @@ func _build_verify() -> void:
 	ui.verify_attest = _label("", 13, COLOR_INFO)
 	v.add_child(ui.verify_attest)
 	var row_btn := _row()
-	var open_proof := _button("Open Proof Tx", func():
+	var open_proof := _button("OPEN PROOF TX", func():
 		if proof_tx_hash != "":
 			OS.shell_open(cardano_service.explorer_url(proof_tx_hash))
 	)
 	open_proof.disabled = true
 	ui.open_proof = open_proof
 	row_btn.add_child(open_proof)
-	var open_attest := _button("Open Attestation Tx", func():
+	var open_attest := _button("OPEN ATTESTATION TX", func():
 		if attest_tx_hash != "":
 			OS.shell_open(cardano_service.explorer_url(attest_tx_hash))
 	)
@@ -264,49 +293,39 @@ func _build_verify() -> void:
 	ui.cip30_status = _label("", 13, COLOR_WARN)
 	v.add_child(ui.cip30_status)
 	var row2 := _row()
-	var cip30_btn := _button("Connect Wallet (CIP-30)", func(): _connect_cip30())
+	var cip30_btn := _button("CONNECT WALLET", func(): _connect_cip30())
 	ui.cip30_btn = cip30_btn
 	row2.add_child(cip30_btn)
-	var retry := _button("Retry", func(): _start_cardano_flow(flow_quest))
+	var retry := _button("RETRY", func(): _start_cardano_flow(flow_quest))
 	retry.disabled = true
 	ui.retry_btn = retry
 	row2.add_child(retry)
 	v.add_child(row2)
-	var cont := _button("Continue", func(): _continue_after_verify())
+	var cont := _button("CONTINUE ADVENTURE", func(): _continue_after_verify())
 	ui.cont_btn = cont
 	cont.disabled = true
 	v.add_child(cont)
 
 func _build_achievements() -> void:
 	var s := _screen("achievements")
-	var root := MarginContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 60)
-	root.add_theme_constant_override("margin_top", 50)
-	s.add_child(root)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 10)
-	root.add_child(v)
-	v.add_child(_label("Achievements", 28, COLOR_TITLE))
+	var v := _center_panel(s)
+	v.add_child(_centered_label("ACHIEVEMENTS", 24, COLOR_TITLE))
+	v.add_child(_centered_label("Every completed quest can become verifiable proof.", 11, Color("#94a3b8")))
 	ui.achievements_list = VBoxContainer.new()
 	v.add_child(ui.achievements_list)
-	v.add_child(_button("Back", func(): _transition_to("menu")))
+	v.add_child(_button("BACK TO BASE", func(): _transition_to("menu")))
 
 func _build_settings() -> void:
 	var s := _screen("settings")
-	var root := MarginContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 60)
-	root.add_theme_constant_override("margin_top", 50)
-	s.add_child(root)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 12)
-	root.add_child(v)
-	v.add_child(_label("Settings / About", 28, COLOR_TITLE))
-	v.add_child(_label("Network: " + cardano_service.network, 16))
-	v.add_child(_label("Bridge: " + cardano_service.bridge_url, 14, COLOR_INFO))
-	v.add_child(_label("Godot platformer with Cardano Preprod integration. Gameplay stays off-chain; only quest milestones anchor on Cardano (label 674 + CIP-0170 attestation label 1701).", 14, Color("#94a3b8")))
-	v.add_child(_button("Back", func(): _transition_to("menu")))
+	var v := _center_panel(s)
+	v.add_child(_centered_label("SYSTEM STATUS", 24, COLOR_TITLE))
+	v.add_child(_label("NETWORK  •  " + cardano_service.network.to_upper(), 12, COLOR_OK))
+	v.add_child(_label("BRIDGE   •  " + cardano_service.bridge_url, 10, COLOR_INFO))
+	var about := _label("Catalyst Quest keeps gameplay fast and off-chain. Only meaningful quest milestones are anchored to Cardano with proof metadata and CIP-0170 attestations.", 11, Color("#94a3b8"))
+	about.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	about.custom_minimum_size.x = 600
+	v.add_child(about)
+	v.add_child(_button("BACK TO BASE", func(): _transition_to("menu")))
 
 # ---------------------------------------------------------------------------
 # Profile / cloud

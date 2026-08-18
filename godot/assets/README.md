@@ -8,5 +8,8 @@ Game graphics (CC0, free for commercial use, attribution not required):
   background (`background/`).
 - **Kenney — Tiny Dungeon** (https://kenney.nl/assets/tiny-dungeon): dungeon tiles
   used in earlier levels.
+- **Press Start 2P** by CodeMan38 (https://fonts.google.com/specimen/Press+Start+2P):
+  menu and HUD typeface, distributed under the SIL Open Font License 1.1.
 
-Licenses: CC0 — see each pack's `license.txt`.
+Kenney graphics are CC0; Press Start 2P is OFL-1.1. Both may be bundled and used
+commercially. The game makes no asset requests at runtime.

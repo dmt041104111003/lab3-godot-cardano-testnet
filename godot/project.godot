@@ -16,6 +16,7 @@ quest_state="*res://autoload/quest_state.gd"
 profile="*res://autoload/profile.gd"
 cardano_service="*res://services/cardano_service.gd"
 cip30="*res://services/cip30.gd"
+ui_theme="*res://ui/ui_theme.gd"
 
 [display]
 

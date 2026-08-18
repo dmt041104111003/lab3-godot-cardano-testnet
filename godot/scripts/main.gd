@@ -22,7 +22,8 @@ extends Control
 # ---------------------------------------------------------------------------
 const OFFLINE_MODE := false
 
-const BRIDGE_URL_DEFAULT := "http://127.0.0.1:8787"
+const BRIDGE_URL_DEFAULT := "http://127.0.0.1:8787"  # desktop/local dev
+const BRIDGE_URL_HOSTED := "https://lab3-godot-cardano-bridge.vercel.app"  # web build
 const KOIOS_URL_DEFAULT := "https://preprod.koios.rest/api/v1"
 const BLOCKFROST_URL_DEFAULT := "https://cardano-preprod.blockfrost.io/api/v0"
 # Public Preprod demo key. Used only by browser builds to read live testnet data
@@ -82,14 +83,15 @@ func _ready() -> void:
 	_refresh_data()
 
 func _load_config() -> void:
-	bridge_url = _env_or("LAB3_BRIDGE_URL", BRIDGE_URL_DEFAULT)
+	var on_web := OS.has_feature("web")
+	bridge_url = _env_or("LAB3_BRIDGE_URL", BRIDGE_URL_HOSTED if on_web else BRIDGE_URL_DEFAULT)
 	koios_url = _env_or("LAB3_KOIOS_URL", KOIOS_URL_DEFAULT)
 	blockfrost_url = _env_or("LAB3_BLOCKFROST_URL", BLOCKFROST_URL_DEFAULT)
 	blockfrost_key = _env_or("LAB3_BLOCKFROST_KEY", BLOCKFROST_KEY_DEFAULT)
 	network_name = _env_or("LAB3_NETWORK", NETWORK_DEFAULT)
 	explorer_base = _env_or("LAB3_EXPLORER", EXPLORER_DEFAULT)
 	quest_id = _env_or("LAB3_QUEST_ID", QUEST_ID_DEFAULT)
-	if OS.has_feature("web"):
+	if on_web:
 		read_mode = "bridge" if FORCE_BRIDGE_READS else "blockfrost"
 	else:
 		read_mode = "koios"

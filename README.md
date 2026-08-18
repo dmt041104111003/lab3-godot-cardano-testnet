@@ -1,6 +1,7 @@
 # LAB3 Godot × Cardano Game
 
-**Play Now:** https://dmt041104111003.github.io/lab3-godot-cardano-testnet/
+**Play Now:** https://dmt041104111003.github.io/lab3-godot-cardano-testnet/  ·
+mirror: https://vercel-game-alpha.vercel.app/
 
 A playable Godot 4 game where you complete quests, build persistent progression,
 and earn achievements that are **verified on Cardano**. Real Preprod transactions

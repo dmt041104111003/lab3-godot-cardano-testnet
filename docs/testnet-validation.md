@@ -85,6 +85,7 @@ inline datum. Explorers show these as NFTs in the wallet.
 | N1 | `660055494f69f240f19bab17e93dd478b12233d6e918de11072c2aae276f001c` | `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3` | `quest_achievement_001` | `5069568` |
 | N2 | `739b79828536656ce04abf6cd9ba586a379e7929a56916efdebf5364353d0e84` | `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3` | `quest_002` | `5069573` |
 | N3 | `02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7` | `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3` | `quest_003` | `5069578` (hosted bridge) |
+| N4 | `14abfa950e76a52b40ffd67140b1f19d7936cdd157d8f68cd4e3ada70733c10a` | `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3` | `quest_004` | `5069648` (Node 24 local bridge) |
 
 - Explorer N3: https://preprod.cardanoscan.io/transaction/02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7
 - The reference-token output carries an **inline datum hash** with the achievement

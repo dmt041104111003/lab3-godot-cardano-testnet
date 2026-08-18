@@ -5,34 +5,30 @@ extends Control
 ##   1. Reads live Cardano testnet (Preprod/Preview) data via public APIs.
 ##   2. Lets the player complete a quest.
 ##   3. Submits a REAL testnet transaction (metadata under label 674) through the
-##      local signing bridge (backend/) — Godot initiates the flow, the bridge
-##      signs with a funded testnet wallet and submits on-chain.
+##      signing bridge (backend/) — Godot initiates the flow, the bridge signs
+##      with a funded testnet wallet and submits on-chain.
 ##   4. Polls the chain until the transaction is confirmed and opens the explorer.
 ##
+## All data is REAL and read live from the Cardano Preprod network.
 ## Read source is chosen automatically:
 ##   - Desktop build -> Koios public API (no key).
 ##   - Web (browser) build -> Blockfrost (CORS-enabled) using a public Preprod
-##     demo key embedded below. Submissions always go through the bridge.
-##
-## OFFLINE_MODE=true uses scripts/offline_data.gd (development without network).
-## The live path runs with OFFLINE_MODE=false.
+##     demo key; submissions go to the hosted bridge (Vercel).
 
 # ---------------------------------------------------------------------------
 # Configuration (override via OS environment variables where noted)
 # ---------------------------------------------------------------------------
-const OFFLINE_MODE := false
-
-const BRIDGE_URL_DEFAULT := "http://127.0.0.1:8787"  # desktop/local dev
+const BRIDGE_URL_LOCAL := "http://127.0.0.1:8787"  # desktop/local dev
 const BRIDGE_URL_HOSTED := "https://lab3-godot-cardano-bridge.vercel.app"  # web build
 const KOIOS_URL_DEFAULT := "https://preprod.koios.rest/api/v1"
 const BLOCKFROST_URL_DEFAULT := "https://cardano-preprod.blockfrost.io/api/v0"
 # Public Preprod demo key. Used only by browser builds to read live testnet data
-# (no hosted backend needed). Preprod keys are free, public, testnet-only data.
+# (no hosted backend needed for reads). Preprod keys are free, public, testnet-only.
 const BLOCKFROST_KEY_DEFAULT := "preprodGeW2TyWcjdJO6tUubKgqORmqsdwX9v7A"
 const NETWORK_DEFAULT := "preprod"
 const EXPLORER_DEFAULT := "https://preprod.cardanoscan.io/transaction"
 const QUEST_ID_DEFAULT := "demo_001"
-# Set true to route web reads through a hosted bridge instead of Blockfrost.
+# Set true to route web reads through the hosted bridge instead of Blockfrost.
 const FORCE_BRIDGE_READS := false
 
 const POLL_INTERVAL_SECONDS := 3.0
@@ -53,7 +49,6 @@ var explorer_base: String
 var quest_id: String
 var read_mode := "koios"  # "koios" | "blockfrost" | "bridge"
 
-var player_address := ""
 var quest_completed := false
 var tx_hash := ""
 var poll_count := 0
@@ -74,17 +69,14 @@ var ui := {}
 func _ready() -> void:
 	_load_config()
 	_build_ui()
-	_log("LAB3 Godot x Cardano Testnet Demo — v1.0.0", COLOR_INFO)
-	if OFFLINE_MODE:
-		_log("Offline mode active — no live Cardano data.", COLOR_WARN)
-	else:
-		_log("Network: %s | reads via %s" % [network_name, read_mode], COLOR_INFO)
-		_log("Bridge: %s" % bridge_url, COLOR_INFO)
+	_log("LAB3 Godot x Cardano Testnet Demo — live build", COLOR_INFO)
+	_log("Network: %s | reads via %s" % [network_name, read_mode], COLOR_INFO)
+	_log("Bridge: %s" % bridge_url, COLOR_INFO)
 	_refresh_data()
 
 func _load_config() -> void:
 	var on_web := OS.has_feature("web")
-	bridge_url = _env_or("LAB3_BRIDGE_URL", BRIDGE_URL_HOSTED if on_web else BRIDGE_URL_DEFAULT)
+	bridge_url = _env_or("LAB3_BRIDGE_URL", BRIDGE_URL_HOSTED if on_web else BRIDGE_URL_LOCAL)
 	koios_url = _env_or("LAB3_KOIOS_URL", KOIOS_URL_DEFAULT)
 	blockfrost_url = _env_or("LAB3_BLOCKFROST_URL", BLOCKFROST_URL_DEFAULT)
 	blockfrost_key = _env_or("LAB3_BLOCKFROST_KEY", BLOCKFROST_KEY_DEFAULT)
@@ -123,12 +115,8 @@ func _build_ui() -> void:
 	var title := _label("LAB3 Godot × Cardano Testnet Demo", 26, COLOR_TITLE)
 	vbox.add_child(title)
 
-	var subtitle := _label("Real Preprod/Preview data + real testnet transaction proof", 13, Color("#94a3b8"))
+	var subtitle := _label("Live Cardano Preprod data + real testnet transactions", 13, Color("#94a3b8"))
 	vbox.add_child(subtitle)
-
-	if OFFLINE_MODE:
-		var offline_banner := _label("Offline mode — development only. Set OFFLINE_MODE=false for live data.", 14, COLOR_WARN)
-		vbox.add_child(offline_banner)
 
 	vbox.add_child(_hr())
 
@@ -275,7 +263,7 @@ func _set_ui_status(key: String, text: String, color: Color) -> void:
 	ui[key].add_theme_color_override("font_color", color)
 
 # ---------------------------------------------------------------------------
-# Cardano reads (live data; offline data when OFFLINE_MODE)
+# Live Cardano reads (real data)
 # ---------------------------------------------------------------------------
 func _request_tip() -> void:
 	if read_mode == "blockfrost":
@@ -314,16 +302,6 @@ func _request_tx_status() -> void:
 func _refresh_data() -> void:
 	ui.refresh_btn.disabled = true
 	_set_ui_status("network", "checking…", COLOR_WARN)
-	if OFFLINE_MODE:
-		var t = OfflineData.tip()
-		_set_ui_status("network", "%s  (tip height %d)  [OFFLINE]" % [network_name, t.block_height], COLOR_WARN)
-		var info = OfflineData.address_info(_address())
-		var bal := 0
-		if info.size() > 0:
-			bal = int(info[0].get("balance", 0))
-		_on_addr_data(bal)
-		ui.refresh_btn.disabled = false
-		return
 	_request_tip()
 
 func _address() -> String:
@@ -353,13 +331,6 @@ func _refresh_balance() -> void:
 	if addr == "":
 		_set_ui_status("balance", "no address entered", COLOR_WARN)
 		ui.refresh_btn.disabled = false
-		return
-	if OFFLINE_MODE:
-		var info = OfflineData.address_info(addr)
-		var bal := 0
-		if info.size() > 0:
-			bal = int(info[0].get("balance", 0))
-		_on_addr_data(bal)
 		return
 	_request_address(addr)
 
@@ -406,14 +377,10 @@ func _on_submit_pressed() -> void:
 	var addr := _address()
 	if addr != "" and not addr.begins_with("addr_test"):
 		_log("Address does not look like a testnet address (addr_test1...).", COLOR_WARN)
-	if OFFLINE_MODE:
-		var res = OfflineData.submit(quest_id, addr)
-		_on_submit_result(res)
-		return
 	submitting = true
 	ui.submit_btn.disabled = true
 	_set_ui_status("submit_status", "submitting…", COLOR_WARN)
-	_log("Submitting testnet proof to bridge…", COLOR_INFO)
+	_log("Submitting testnet proof to bridge: %s" % bridge_url, COLOR_INFO)
 	var payload := JSON.stringify({
 		"questId": quest_id,
 		"playerAddress": addr,
@@ -424,7 +391,7 @@ func _on_submit_pressed() -> void:
 func _on_submit_done(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 	submitting = false
 	if result != HTTPRequest.RESULT_SUCCESS:
-		_log("Bridge unreachable at %s (start it with: cd backend && npm start)." % bridge_url, COLOR_ERR)
+		_log("Bridge unreachable at %s." % bridge_url, COLOR_ERR)
 		_set_ui_status("submit_status", "bridge unreachable", COLOR_ERR)
 		ui.submit_btn.disabled = false
 		return
@@ -466,9 +433,6 @@ func _poll_confirmation() -> void:
 		polling = false
 		_log("Timed out waiting for confirmation after %d polls." % MAX_POLLS, COLOR_ERR)
 		_set_ui_status("submit_status", "confirmation timeout", COLOR_ERR)
-		return
-	if OFFLINE_MODE:
-		_handle_tx_info(1)
 		return
 	_request_tx_status()
 

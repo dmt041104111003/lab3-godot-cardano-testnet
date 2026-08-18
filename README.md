@@ -38,33 +38,39 @@ Both transactions carry metadata under **label 674** with tag
 `LAB3_GODOT_CARDANO_TRL5_DEMO` (verified on-chain via Blockfrost — see
 [docs/testnet-validation.md](docs/testnet-validation.md)).
 
-## Verify it yourself — the trio
+## Verify it yourself — live, right now
 
-1. **Source** — this repository (everything is documented and runnable).
-2. **Live demo** — a browser playable build (Godot Web export) deployed to
-   GitHub Pages / Netlify / Vercel: see [docs/live-demo.md](docs/live-demo.md).
-3. **On-chain proof** — the real Preprod transactions above, openable in any
-   Cardano explorer.
+1. **Live demo (web)** — open the browser build (GitHub Pages) and test it:
+   paste any `addr_test1…` address → balance shows; click **Complete Quest** →
+   **Submit Testnet Proof** → a real Preprod transaction is signed by the hosted
+   bridge and confirmed on-chain, then the hash appears in the game.
+2. **Hosted bridge** — `https://lab3-godot-cardano-bridge.vercel.app/health`
+   (live on Vercel; `/api/tip`, `/api/address_info`, `/api/quest/complete`).
+3. **On-chain proof** — the real Preprod transactions below, openable in any
+   Cardano explorer (metadata label 674, tag `LAB3_GODOT_CARDANO_TRL5_DEMO`).
 
-> The explorer link is the strongest proof; the live demo lets a reviewer open
-> the app and test it directly. Recording a demo video is optional.
+> Every number you see in the app is fetched live from Cardano Preprod — nothing
+> is simulated. A demo video is optional; the live demo + explorer links are the
+> primary proof.
 
 ---
 
 ## How it works (10-second version)
 
 ```
-Godot 4  ──reads live data──►  Koios public API (Preprod)
-   │                              (balance / tip / tx status)
-   │  POST /api/quest/complete
-   ▼
-Local signing bridge (Node.js + Mesh SDK)  ──signs + submits──►  Cardano Preprod
+Browser:  Godot Web  ──reads (Blockfrost)──►  Cardano Preprod
+             │  POST /api/quest/complete
+             ▼
+Hosted bridge (Vercel, Node.js + Mesh SDK)  ──signs + submits──►  Cardano Preprod
    │
    └──► returns tx hash ──► Godot polls chain ──► CONFIRMED + explorer link
+
+Desktop:   Godot  ──reads (Koios)──►  Cardano Preprod
+             │  submit via local bridge (http://127.0.0.1:8787) or hosted bridge
 ```
 
-Godot initiates the workflow; the small local bridge performs the signing (native
-Godot cannot reach browser CIP-30 wallets). Full detail:
+Godot initiates the workflow; the bridge performs the signing (native Godot cannot
+reach browser CIP-30 wallets). Full detail:
 [docs/architecture.md](docs/architecture.md).
 
 ---
@@ -78,7 +84,7 @@ Godot cannot reach browser CIP-30 wallets). Full detail:
 ├── .env.example              ← template for local secrets (gitignored)
 ├── .gitignore
 ├── docs/
-│   ├── architecture.md       ← system design, data flow, security
+│   ├── architecture.md       ← system design, data flow, live deployment
 │   ├── testnet-validation.md ← REAL executed transactions + how to reproduce
 │   ├── evidence.md           ← validation & evidence checklist
 │   ├── live-demo.md          ← Godot Web export + GitHub Pages deployment
@@ -89,12 +95,14 @@ Godot cannot reach browser CIP-30 wallets). Full detail:
 │   ├── export_presets.cfg    ← Web (HTML5) export preset
 │   ├── scenes/main.tscn
 │   └── scripts/
-│       ├── main.gd           ← UI + Koios reads + submit flow + polling
-│       └── offline_data.gd   ← offline dev data (OFFLINE_MODE, separated)
+│       └── main.gd           ← UI + live Cardano reads + submit flow + polling
 └── backend/
     ├── package.json
+    ├── vercel.json           ← Vercel serverless config
+    ├── api/index.js          ← Vercel entry (exports the Express app)
     └── src/
-        ├── server.js         ← Express bridge API
+        ├── server.js         ← local dev server (127.0.0.1:8787)
+        ├── app.js            ← Express app (routes, CORS, proxies)
         ├── cardano.js        ← Mesh SDK wallet / build / sign / submit
         ├── config.js         ← env + network mapping
         └── scripts/
@@ -235,24 +243,35 @@ curl -s -X POST https://preprod.koios.rest/api/v1/tx_info \
 ## Security
 
 - **Never commit:** seed phrases, private keys, API secrets.
-- The mnemonic and Blockfrost key live only in gitignored `.env`.
-- The bridge binds to `127.0.0.1` and is intended for local development.
-- Godot never sees the mnemonic — it only talks to the local bridge.
+- The mnemonic and Blockfrost key live only in gitignored `.env` (local) or Vercel
+  env vars (production). They are never committed.
+- The bridge binds to `127.0.0.1` for local development; production runs on Vercel.
+- Godot never sees the mnemonic — it only talks to the bridge.
 - All activity is on Cardano **testnet** (Preprod/Preview) — testnet funds only.
-
-## Offline development mode
-
-For offline UI development, set `OFFLINE_MODE := true` at the top of
-`godot/scripts/main.gd`. The app then uses `godot/scripts/offline_data.gd`
-(clearly labeled `[OFFLINE]`) and never touches the live network. The live path
-runs with `OFFLINE_MODE = false` and uses real, verified on-chain data.
 
 ## Web (browser) builds
 
-Browser builds cannot call Koios directly (no CORS headers), so on web builds
-Godot automatically routes reads through the CORS-enabled bridge
-(`/api/tip`, `/api/address_info`, `/api/tx_info`). See
-[docs/live-demo.md](docs/live-demo.md) for deployment.
+- Browser builds read live data from **Blockfrost** (CORS-enabled) using a public
+  Preprod key embedded in the build, and submit through the hosted bridge
+  (`https://lab3-godot-cardano-bridge.vercel.app`) — fully functional for
+  visitors with zero local setup.
+- Desktop builds read from **Koios** (no key) and submit to the local bridge
+  (`http://127.0.0.1:8787`) or the hosted bridge.
+- The web build auto-detects the environment via `OS.has_feature("web")`.
+
+## For reviewers — quick verification
+
+1. Open the live demo (GitHub Pages URL) in a browser.
+2. Paste the bridge wallet address
+   `addr_test1qp6el7vnjgr2gqd5m7dcz92uw5pwqaddpp520jgy3xvd9l4fg96w0twerwjcahs5djhttqgj5slgt9yd6xftgecum22qraq6v4`
+   → the balance shows live tADA from Preprod.
+3. Click **Complete Quest** → **Submit Testnet Proof** → a real transaction is
+   signed by the hosted bridge and confirmed on-chain; the hash + block height
+   appear in the game.
+4. Click **Open Explorer** to view the transaction and its metadata (label 674)
+   on `preprod.cardanoscan.io`.
+5. Cross-check any hash in the explorer against
+   [docs/testnet-validation.md](docs/testnet-validation.md).
 
 ---
 

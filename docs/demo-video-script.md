@@ -56,5 +56,5 @@ Title: **LAB3 Godot × Cardano Testnet Demo — real Preprod transaction**
 ## Recording tips
 - Use 1080p, 60 fps, normal UI zoom, no sensitive `.env` content on screen.
 - Do NOT show the mnemonic or `.env` file contents.
-- Keep the bridge console visible in a corner window to prove it is the live
-  path and not offline/dev data.
+- Keep the bridge console visible in a corner window to prove every value is
+  fetched live from the real chain.

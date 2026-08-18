@@ -34,10 +34,12 @@ curl -s -X POST https://preprod.koios.rest/api/v1/tx_info \
 
 ## Executed transactions (Preprod, 2026-08-17)
 
-| # | Transaction hash | Explorer |
-| - | ---------------- | -------- |
-| 1 | `30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162` | https://preprod.cardanoscan.io/transaction/30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162 |
-| 2 | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` | https://preprod.cardanoscan.io/transaction/4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501 |
+| # | Transaction hash | Origin | Explorer |
+| - | ---------------- | ------ | -------- |
+| 1 | `30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162` | desktop bridge | https://preprod.cardanoscan.io/transaction/30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162 |
+| 2 | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` | desktop bridge | https://preprod.cardanoscan.io/transaction/4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501 |
+| 3 | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` | desktop bridge | https://preprod.cardanoscan.io/transaction/7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120 |
+| 4 | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` | **hosted Vercel bridge** | https://preprod.cardanoscan.io/transaction/73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4 |
 
 Full details (block heights, fees, inputs/outputs, metadata) are in
 [docs/testnet-validation.md](testnet-validation.md).
@@ -53,8 +55,9 @@ Full details (block heights, fees, inputs/outputs, metadata) are in
 | 5 | Cardano network | ✅ | **Preprod** |
 | 6 | Transaction #1 hash | ✅ | `30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162` |
 | 7 | Transaction #2 hash | ✅ | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` |
-| 8 | Explorer link #1 | ✅ | https://preprod.cardanoscan.io/transaction/30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162 |
-| 9 | Explorer link #2 | ✅ | https://preprod.cardanoscan.io/transaction/4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501 |
+| 8 | Transaction #3 hash | ✅ | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` |
+| 9 | Transaction #4 hash (hosted bridge) | ✅ | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` |
+| 10 | Hosted bridge URL | ✅ | `https://lab3-godot-cardano-bridge.vercel.app` |
 | 10 | Date tested | ✅ | 2026-08-17 |
 | 11 | Exact gameplay flow | ✅ | below |
 
@@ -73,8 +76,12 @@ Godot launch
 
 ## Integrity statement
 
-- The live path (`OFFLINE_MODE=false`) uses only real Cardano network responses.
-- Both transaction hashes above were produced by real wallet-signed submissions
-  and confirmed in Preprod blocks — none are fabricated.
+- Every value in the app is fetched live from the Cardano Preprod network (Koios,
+  Blockfrost, or the hosted bridge) — there is no simulated or local-only path in
+  the shipped code.
+- All four transaction hashes in this document were produced by real
+  wallet-signed submissions and confirmed in Preprod blocks — none are
+  fabricated.
 - The Blockfrost API key and wallet mnemonic used are testnet-only and are not
-  committed to the repository (they live in the gitignored `.env`).
+  committed to the repository (local `.env` is gitignored; production secrets
+  live in Vercel env vars).

@@ -66,6 +66,12 @@ anchor + issuer signature before showing the achievement as **verified**.
 Confirmed on Preprod (create v1 + update v2 + a hosted-bridge create) with
 `verified: true` — see [docs/cip-0170.md](docs/cip-0170.md).
 
+Players can also **authorize the attestation with their own CIP-30 wallet**
+(Eternl/Nami/Vespr in the browser): connect the wallet, sign the attestation hash
+with it, and the bridge anchors it on-chain with both the player and issuer
+signatures (verified true). This is the real "player wallet → attestation" flow
+the Pilot requires.
+
 ```mermaid
 flowchart LR
     subgraph G["Godot (off-chain game state)"]
@@ -100,9 +106,11 @@ Full details: [docs/cip-0170.md](docs/cip-0170.md).
 ## Verify it yourself — live, right now
 
 1. **Web build (browser)** — open the GitHub Pages build and run a real test:
-   paste any `addr_test1…` address → balance shows; click **Complete Quest** →
-   **Submit Testnet Proof** → a real Preprod transaction is signed by the hosted
-   bridge and confirmed on-chain, then the hash appears in the app.
+   click **Play Quest** → play the mini-game (collect 5 gems) → the milestone is
+   reached; then **Submit Testnet Proof**, **Mint Achievement NFT**, or in
+   **IDENTITY & ATTESTATION (CIP-0170)**: **Register Identity** → **Connect Wallet
+   (CIP-30)** → **Attest Achievement** (signed by your own wallet) → **Verify
+   On-Chain**.
 2. **Hosted bridge** — `https://lab3-godot-cardano-bridge.vercel.app/health`
    (live on Vercel; `/api/tip`, `/api/address_info`, `/api/quest/complete`).
 3. **On-chain proof** — the real Preprod transactions below, openable in any

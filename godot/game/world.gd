@@ -12,7 +12,7 @@ const ARENA_H := 900.0
 const COIN_TOTAL := 8
 const MONSTER_TOTAL := 3
 const CHUNK_SIZE := 512
-const CHUNK_RADIUS := 2
+const CHUNK_RADIUS := 1
 
 var player: CharacterBody2D
 var cam: Camera2D
@@ -45,6 +45,8 @@ var gate_position := Vector2.ZERO
 var active_chunks := {}
 var current_chunk := Vector2i(999999, 999999)
 var sign_tex: Texture2D
+var redraw_accum := 0.0
+var projectile_particle_accum := 0.0
 
 func _safe_tex(path: String) -> Texture2D:
 	var t = load(path)
@@ -98,7 +100,10 @@ func _process(delta: float) -> void:
 	_poll_presence(delta)
 	_update_camera_shake(delta)
 	_update_chunks()
-	queue_redraw()
+	redraw_accum += delta
+	if redraw_accum >= 0.12:
+		redraw_accum = 0.0
+		queue_redraw()
 
 # ---------------------------------------------------------------------------
 # Arena
@@ -322,6 +327,7 @@ func _cast_fireball() -> void:
 	projectiles.append({ "node": node, "dir": dir, "speed": 420.0, "life": 1.2 })
 
 func _update_projectiles(delta: float) -> void:
+	projectile_particle_accum += delta
 	for p in projectiles.duplicate():
 		p.life -= delta
 		if p.life <= 0.0:
@@ -330,7 +336,8 @@ func _update_projectiles(delta: float) -> void:
 			continue
 		var node: Node2D = p.node
 		node.position += (p.dir as Vector2) * (p.speed as float) * delta
-		_spawn_particles(node.position, Color(1.0, 0.6, 0.2), 2, 40)
+		if projectile_particle_accum >= 0.08:
+			_spawn_particles(node.position, Color(1.0, 0.6, 0.2), 1, 25)
 		for m in monsters.duplicate():
 			if node.position.distance_to(m.pos) < 30:
 				_damage_monster(m, 1)
@@ -338,6 +345,8 @@ func _update_projectiles(delta: float) -> void:
 				projectiles.erase(p)
 				node.queue_free()
 				break
+	if projectile_particle_accum >= 0.08:
+		projectile_particle_accum = 0.0
 
 func _damage_in_rect(rect: Rect2, dmg: int) -> void:
 	for m in monsters.duplicate():

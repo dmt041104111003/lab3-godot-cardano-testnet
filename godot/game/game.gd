@@ -39,6 +39,18 @@ func _ready() -> void:
 	_show_screen("menu")
 	_apply_profile_to_ui()
 
+func _process(_delta: float) -> void:
+	if world == null or not screens.has("play") or not screens["play"].visible:
+		return
+	if ui.has("skill_slash"):
+		var slash_cd: float = world.skill1_cd
+		ui.skill_slash.text = "J\nSLASH\n%s" % ["READY" if slash_cd <= 0.0 else "%.1fs" % slash_cd]
+		ui.skill_slash.modulate = Color.WHITE if slash_cd <= 0.0 else Color(0.55, 0.62, 0.68)
+	if ui.has("skill_fire"):
+		var fire_cd: float = world.skill2_cd
+		ui.skill_fire.text = "K\nFIREBALL\n%s" % ["READY" if fire_cd <= 0.0 else "%.1fs" % fire_cd]
+		ui.skill_fire.modulate = Color.WHITE if fire_cd <= 0.0 else Color(0.55, 0.62, 0.68)
+
 func _build_background() -> void:
 	var backdrop := preload("res://ui/starfield.gd").new()
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -50,6 +62,7 @@ func _ensure_input() -> void:
 	_add_key("ui_left", KEY_A)
 	_add_key("ui_right", KEY_D)
 	_add_key("ui_up", KEY_W)
+	_add_key("ui_down", KEY_S)
 	_add_key("ui_accept", KEY_SPACE)
 	_add_key("skill_1", KEY_J)
 	_add_key("skill_2", KEY_K)
@@ -255,7 +268,28 @@ func _build_play() -> void:
 	s.add_child(ui.info_label)
 	ui.info_label.anchors_preset = Control.PRESET_BOTTOM_RIGHT
 	ui.info_label.offset_right = -12
-	ui.info_label.offset_bottom = -8
+	ui.info_label.offset_bottom = -136
+	var skills := HBoxContainer.new()
+	skills.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	skills.offset_left = -310
+	skills.offset_top = -120
+	skills.offset_right = -18
+	skills.offset_bottom = -18
+	skills.add_theme_constant_override("separation", 10)
+	s.add_child(skills)
+	ui.skill_slash = _skill_card("J\nSLASH\nREADY", Color("#43d9e6"))
+	ui.skill_fire = _skill_card("K\nFIREBALL\nREADY", Color("#ff9f43"))
+	skills.add_child(ui.skill_slash)
+	skills.add_child(ui.skill_fire)
+
+func _skill_card(text: String, accent: Color) -> Button:
+	var card := Button.new()
+	card.text = text
+	card.custom_minimum_size = Vector2(138, 96)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_theme_color_override("font_color", accent)
+	card.add_theme_font_size_override("font_size", 10)
+	return card
 
 func _build_verify() -> void:
 	var s := _screen("verify")

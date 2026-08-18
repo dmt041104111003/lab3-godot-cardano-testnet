@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { config, validateConfig } from './config.js';
-import { submitProof, txStatus, koiosJson } from './cardano.js';
+import { submitProof, txStatus, koiosJson, mintAchievement } from './cardano.js';
 
 validateConfig();
 
@@ -63,6 +63,20 @@ app.post('/api/quest/complete', async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('[submit] failed:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/quest/complete-nft', async (req, res) => {
+  try {
+    const { questId, playerAddress } = req.body || {};
+    if (!questId || typeof questId !== 'string') {
+      return res.status(400).json({ ok: false, error: 'questId (string) is required' });
+    }
+    const result = await mintAchievement({ questId, playerAddress });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[mint] failed:', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

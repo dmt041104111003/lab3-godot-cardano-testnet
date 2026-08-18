@@ -49,10 +49,12 @@ var tx_hash := ""
 var poll_count := 0
 var polling := false
 var submitting := false
+var minting := false
 
 var http_tip: HTTPRequest
 var http_addr: HTTPRequest
 var http_submit: HTTPRequest
+var http_mint: HTTPRequest
 var http_tx: HTTPRequest
 var poll_timer: Timer
 
@@ -232,6 +234,24 @@ func _build_ui() -> void:
 
 	vbox.add_child(_hr())
 
+	# ---- CIP-68 achievement NFT ----
+	vbox.add_child(_section("ACHIEVEMENT NFT (CIP-68)"))
+	var nft_row := _row()
+	var nft_btn := Button.new()
+	nft_btn.text = "Mint Achievement NFT"
+	nft_btn.disabled = true
+	nft_btn.pressed.connect(_on_mint_pressed)
+	ui.nft_btn = nft_btn
+	nft_row.add_child(nft_btn)
+	ui.nft_status = _label("Complete a quest first", 14, COLOR_WARN)
+	nft_row.add_child(ui.nft_status)
+	vbox.add_child(nft_row)
+
+	ui.nft_info = _label("NFT: —", 13, COLOR_INFO)
+	vbox.add_child(ui.nft_info)
+
+	vbox.add_child(_hr())
+
 	# ---- Log console ----
 	vbox.add_child(_section("LOG"))
 	ui.log = RichTextLabel.new()
@@ -245,12 +265,14 @@ func _build_ui() -> void:
 	http_tip = HTTPRequest.new()
 	http_addr = HTTPRequest.new()
 	http_submit = HTTPRequest.new()
+	http_mint = HTTPRequest.new()
 	http_tx = HTTPRequest.new()
-	for h in [http_tip, http_addr, http_submit, http_tx]:
+	for h in [http_tip, http_addr, http_submit, http_mint, http_tx]:
 		add_child(h)
 	http_tip.request_completed.connect(_on_tip_done)
 	http_addr.request_completed.connect(_on_addr_done)
 	http_submit.request_completed.connect(_on_submit_done)
+	http_mint.request_completed.connect(_on_mint_done)
 	http_tx.request_completed.connect(_on_tx_done)
 
 	poll_timer = Timer.new()
@@ -379,7 +401,9 @@ func _on_quest_pressed() -> void:
 	_set_ui_status("quest_status", "Completed ✓", COLOR_OK)
 	_log("Quest '%s' completed." % quest_id, COLOR_OK)
 	ui.submit_btn.disabled = false
+	ui.nft_btn.disabled = false
 	_set_ui_status("submit_status", "Ready to submit", COLOR_INFO)
+	_set_ui_status("nft_status", "Ready to mint", COLOR_INFO)
 
 func _on_submit_pressed() -> void:
 	if submitting:
@@ -425,6 +449,59 @@ func _on_submit_result(res) -> void:
 	tx_hash = res.get("txHash", "")
 	_log("Transaction submitted! Hash: %s" % tx_hash, COLOR_OK)
 	ui.tx_hash_label.text = "Transaction hash: " + tx_hash
+	ui.tx_hash_label.add_theme_color_override("font_color", COLOR_OK)
+	ui.explorer_btn.disabled = false
+	_set_ui_status("submit_status", "submitted — awaiting confirmation", COLOR_WARN)
+	poll_count = 0
+	polling = true
+	poll_timer.start(POLL_INTERVAL_SECONDS)
+
+# ---------------------------------------------------------------------------
+# CIP-68 achievement NFT mint
+# ---------------------------------------------------------------------------
+func _on_mint_pressed() -> void:
+	if submitting or minting:
+		return
+	minting = true
+	ui.nft_btn.disabled = true
+	_set_ui_status("nft_status", "minting…", COLOR_WARN)
+	_log("Minting CIP-68 achievement NFT via bridge…", COLOR_INFO)
+	var payload := JSON.stringify({
+		"questId": quest_id,
+		"playerAddress": _address(),
+	})
+	var headers := ["Content-Type: application/json"]
+	http_mint.request(bridge_url + "/api/quest/complete-nft", headers, HTTPClient.METHOD_POST, payload)
+
+func _on_mint_done(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	minting = false
+	if result != HTTPRequest.RESULT_SUCCESS:
+		_log("Bridge unreachable at %s." % bridge_url, COLOR_ERR)
+		_set_ui_status("nft_status", "bridge unreachable", COLOR_ERR)
+		ui.nft_btn.disabled = false
+		return
+	if response_code != 200:
+		var data = JSON.parse_string(body.get_string_from_utf8())
+		var msg := "HTTP %d" % response_code if data == null else str(data.get("error", "HTTP %d" % response_code))
+		_log("Bridge returned: %s" % msg, COLOR_ERR)
+		_set_ui_status("nft_status", msg, COLOR_ERR)
+		ui.nft_btn.disabled = false
+		return
+	var data = JSON.parse_string(body.get_string_from_utf8())
+	if data == null or not data.get("ok", false):
+		_set_ui_status("nft_status", "mint failed", COLOR_ERR)
+		ui.nft_btn.disabled = false
+		return
+	var mint_tx := str(data.get("txHash", ""))
+	var policy := str(data.get("policyId", ""))
+	var asset := str(data.get("assetName", ""))
+	_log("CIP-68 NFT minted! Tx: %s" % mint_tx, COLOR_OK)
+	_log("Policy: %s" % policy, COLOR_INFO)
+	ui.nft_info.text = "NFT: %s.%s  (policy %s)" % [policy.substr(0, 12) + "…", asset, policy.substr(0, 12) + "…"]
+	ui.nft_info.add_theme_color_override("font_color", COLOR_OK)
+	_set_ui_status("nft_status", "minted ✓", COLOR_OK)
+	tx_hash = mint_tx
+	ui.tx_hash_label.text = "Transaction hash: " + mint_tx
 	ui.tx_hash_label.add_theme_color_override("font_color", COLOR_OK)
 	ui.explorer_btn.disabled = false
 	_set_ui_status("submit_status", "submitted — awaiting confirmation", COLOR_WARN)

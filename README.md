@@ -41,6 +41,17 @@ workflow. No hashes on this page are fabricated.
 > and submitted by the **hosted bridge** — the same endpoint the browser build
 > uses.
 
+## 🎖 CIP-68 achievement NFTs (real on-chain assets)
+
+Beyond metadata, completing a quest can now mint a **CIP-68 NFT** into the wallet:
+a user token + a reference token carrying the achievement metadata as an inline
+datum — viewable as an NFT in any Cardano explorer. Confirmed on Preprod:
+
+- Policy: `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3`
+- Latest mint (hosted bridge): `02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7`
+  https://preprod.cardanoscan.io/transaction/02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7
+- In the app: complete a quest, then click **Mint Achievement NFT**.
+
 ## Verify it yourself — live, right now
 
 1. **Web build (browser)** — open the GitHub Pages build and run a real test:

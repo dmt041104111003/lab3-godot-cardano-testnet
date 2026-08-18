@@ -74,6 +74,24 @@ this prototype. No transaction hash on this page is fabricated.
 > TX #5 was produced by the **current** code (new product naming) through the
 > hosted bridge — identical to the flow a browser visitor performs.
 
+### CIP-68 Achievement NFTs — minted on Preprod (real assets in wallet)
+
+CIP-68 mints **two assets per quest** into the wallet: a **user token** plus a
+**reference token** (`000643b0` prefix) that carries the achievement metadata as an
+inline datum. Explorers show these as NFTs in the wallet.
+
+| # | Tx hash | Policy | Asset | Block |
+| - | ------- | ------ | ----- | ----- |
+| N1 | `660055494f69f240f19bab17e93dd478b12233d6e918de11072c2aae276f001c` | `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3` | `quest_achievement_001` | `5069568` |
+| N2 | `739b79828536656ce04abf6cd9ba586a379e7929a56916efdebf5364353d0e84` | `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3` | `quest_002` | `5069573` |
+| N3 | `02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7` | `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3` | `quest_003` | `5069578` (hosted bridge) |
+
+- Explorer N3: https://preprod.cardanoscan.io/transaction/02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7
+- The reference-token output carries an **inline datum hash** with the achievement
+  metadata (label 100 convention) — verifiable on-chain.
+- N3 was minted by the **hosted Vercel bridge** — the same endpoint the browser
+  build calls.
+
 > Five independent runs confirm the flow **repeats without failure**.
 
 ## Metadata verified on-chain (TX #1)

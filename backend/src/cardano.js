@@ -1,4 +1,5 @@
-import { AppWallet, MeshTxBuilder, KoiosProvider, BlockfrostProvider } from '@meshsdk/core';
+import { AppWallet, MeshTxBuilder, ForgeScript, BlockfrostProvider, KoiosProvider, LargestFirstInputSelector } from '@meshsdk/core';
+import { deserializeNativeScript } from '@meshsdk/core-cst';
 import { config } from './config.js';
 
 const KOIOS_HOSTS = {
@@ -105,6 +106,84 @@ export async function submitProof({ questId, playerAddress }) {
     metadata,
     walletAddress: paymentAddress,
     rewardAddress,
+    explorerUrl: config.explorerUrl(txHash),
+  };
+}
+
+/**
+ * CIP-68 NFT achievement mint: builds a tx that mints a user token + reference
+ * token (with inline-datum metadata) to the recipient, signs with the bridge
+ * wallet, and submits on-chain.
+ */
+export async function mintAchievement({ questId, playerAddress }) {
+  const provider = createProvider();
+  const wallet = await createWallet();
+  const paymentAddress = wallet.getPaymentAddress();
+  const utxos = await provider.fetchAddressUTxOs(paymentAddress);
+  if (!utxos || utxos.length === 0) {
+    throw new Error(
+      `Bridge wallet has no UTxOs on ${config.network}. Fund it first (see docs/testnet-validation.md).`,
+    );
+  }
+
+  const forgeScript = ForgeScript.withOneSignature(paymentAddress);
+  const policyId = deserializeNativeScript(forgeScript).hash();
+
+  const assetName = (questId || 'quest_001').replace(/[^a-z0-9_]/gi, '_').slice(0, 30);
+  const assetNameHex = Buffer.from(assetName, 'utf8').toString('hex');
+  const refTokenName = '000643b0' + assetNameHex; // CIP-68 label 100 prefix
+
+  const label = 'LAB3 Achievement';
+  const desc = `On-chain quest achievement: ${assetName}`;
+  const cip68Metadata = [
+    Buffer.from(label).toString('hex'),
+    Buffer.from(desc).toString('hex'),
+  ];
+
+  const recipient = playerAddress || paymentAddress;
+
+  const txBuilder = new MeshTxBuilder({
+    fetcher: provider,
+    submitter: provider,
+    selector: new LargestFirstInputSelector(),
+  });
+  const unsignedTxHex = await txBuilder
+    .setNetwork(config.network)
+    .mint('1', policyId, assetNameHex)
+    .mintingScript(forgeScript)
+    .mint('1', policyId, refTokenName)
+    .mintingScript(forgeScript)
+    .metadataValue(674, {
+      project: 'LAB3 Godot Cardano Testnet',
+      event: 'achievement_minted',
+      quest_id: assetName,
+      network: config.network,
+      tag: 'LAB3_GODOT_CARDANO_CIP68',
+    })
+    .txOut(recipient, [
+      { unit: 'lovelace', quantity: '2000000' },
+      { unit: policyId + assetNameHex, quantity: '1' },
+    ])
+    .txOut(recipient, [
+      { unit: 'lovelace', quantity: '2000000' },
+      { unit: policyId + refTokenName, quantity: '1' },
+    ])
+    .txOutInlineDatumValue(cip68Metadata)
+    .changeAddress(paymentAddress)
+    .selectUtxosFrom(utxos)
+    .complete();
+  const signedTxHex = await wallet.signTx(unsignedTxHex);
+  const txHash = await provider.submitTx(signedTxHex);
+
+  return {
+    txHash,
+    network: config.network,
+    standard: 'CIP-68',
+    policyId,
+    assetName,
+    userToken: policyId + assetNameHex,
+    refToken: policyId + refTokenName,
+    recipient,
     explorerUrl: config.explorerUrl(txHash),
   };
 }

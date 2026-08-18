@@ -1,11 +1,15 @@
 extends CharacterBody2D
 ## Platformer player with animated sprite (Kenney alien, CC0).
 
+signal jumped
+signal landed
+
 const SPEED := 330.0
 const JUMP_VELOCITY := -640.0
 const GRAVITY := 1500.0
 
 var facing := 1
+var was_on_floor := true
 var anim: AnimatedSprite2D
 
 func _ready() -> void:
@@ -21,13 +25,21 @@ func _ready() -> void:
 	add_child(shape)
 	anim.play("idle")
 
+func _safe_tex(path: String) -> Texture2D:
+	var t = load(path)
+	if t == null:
+		var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)
+		img.fill(Color(0.4, 0.7, 0.9))
+		t = ImageTexture.create_from_image(img)
+	return t
+
 func _build_animations() -> void:
 	var sf := SpriteFrames.new()
-	var stand := load("res://assets/player/alienBlue_stand.png")
-	var walk1 := load("res://assets/player/alienBlue_walk1.png")
-	var walk2 := load("res://assets/player/alienBlue_walk2.png")
-	var jump := load("res://assets/player/alienBlue_jump.png")
-	var hurt := load("res://assets/player/alienBlue_hurt.png")
+	var stand := _safe_tex("res://assets/player/alienBlue_stand.png")
+	var walk1 := _safe_tex("res://assets/player/alienBlue_walk1.png")
+	var walk2 := _safe_tex("res://assets/player/alienBlue_walk2.png")
+	var jump := _safe_tex("res://assets/player/alienBlue_jump.png")
+	var hurt := _safe_tex("res://assets/player/alienBlue_hurt.png")
 	sf.add_animation("idle")
 	sf.add_frame("idle", stand)
 	sf.set_animation_speed("idle", 1.0)
@@ -52,7 +64,12 @@ func _physics_process(delta: float) -> void:
 	velocity.x = dir * SPEED
 	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
 		velocity.y = JUMP_VELOCITY
+		jumped.emit()
+	var was := was_on_floor
 	move_and_slide()
+	was_on_floor = is_on_floor()
+	if not was and was_on_floor:
+		landed.emit()
 	_update_anim(dir)
 
 func _update_anim(dir: float) -> void:

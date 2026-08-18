@@ -1,6 +1,6 @@
 extends Node2D
 ## Platformer level: run & jump, collect coins, activate terminals, reach the exit.
-## Uses Kenney Platformer Art (Deluxe) / alien sprites (CC0).
+## Kenney CC0 art. Effects: particles, parallax, coin spin, screen shake.
 
 signal coins_collected(count)
 signal terminals_activated(count)
@@ -14,13 +14,15 @@ const COIN_TOTAL := 8
 const TERMINAL_TOTAL := 2
 
 var player: CharacterBody2D
+var cam: Camera2D
+var bg: Node2D
 var coins: Array[Area2D] = []
 var terminals: Array[Area2D] = []
 var enemies: Array[Area2D] = []
-var goal: Area2D
 var coins_left := COIN_TOTAL
 var terminals_left := TERMINAL_TOTAL
 var time := 0.0
+var shake_time := 0.0
 
 var coin_tex: Texture2D
 var grass_mid: Texture2D
@@ -33,17 +35,27 @@ var cloud2: Texture2D
 var cloud3: Texture2D
 var bush: Texture2D
 
+func _safe_tex(path: String) -> Texture2D:
+	var t = load(path)
+	if t == null:
+		var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)
+		img.fill(Color(0.5, 0.5, 0.5))
+		t = ImageTexture.create_from_image(img)
+	return t
+
 func _ready() -> void:
-	coin_tex = load("res://assets/items/coinGold.png")
-	grass_mid = load("res://assets/tiles/grassMid.png")
-	grass_half = load("res://assets/tiles/grassHalfMid.png")
-	sign_tex = load("res://assets/tiles/signExit.png")
-	slime1 = load("res://assets/enemies/slimeWalk1.png")
-	slime2 = load("res://assets/enemies/slimeWalk2.png")
-	cloud1 = load("res://assets/background/cloud1.png")
-	cloud2 = load("res://assets/background/cloud2.png")
-	cloud3 = load("res://assets/background/cloud3.png")
-	bush = load("res://assets/background/bush.png")
+	coin_tex = _safe_tex("res://assets/items/coinGold.png")
+	grass_mid = _safe_tex("res://assets/tiles/grassMid.png")
+	grass_half = _safe_tex("res://assets/tiles/grassHalfMid.png")
+	sign_tex = _safe_tex("res://assets/tiles/signExit.png")
+	slime1 = _safe_tex("res://assets/enemies/slimeWalk1.png")
+	slime2 = _safe_tex("res://assets/enemies/slimeWalk2.png")
+	cloud1 = _safe_tex("res://assets/background/cloud1.png")
+	cloud2 = _safe_tex("res://assets/background/cloud2.png")
+	cloud3 = _safe_tex("res://assets/background/cloud3.png")
+	bush = _safe_tex("res://assets/background/bush.png")
+	bg = Node2D.new()
+	add_child(bg)
 	_build_background()
 	_build_ground()
 	_build_platforms()
@@ -55,7 +67,9 @@ func _ready() -> void:
 	player.name = "Player"
 	player.position = Vector2(120, GROUND_Y - 120)
 	add_child(player)
-	var cam := Camera2D.new()
+	player.jumped.connect(func(): _spawn_dust(player.position + Vector2(0, 30)))
+	player.landed.connect(func(): _spawn_dust(player.position + Vector2(0, 30), 6))
+	cam = Camera2D.new()
 	cam.limit_left = 0
 	cam.limit_right = int(WORLD_W)
 	cam.limit_top = 0
@@ -67,7 +81,22 @@ func _process(delta: float) -> void:
 	time += delta
 	_patrol_enemies(delta)
 	_check_terminal_activation()
+	_spin_coins()
+	if bg != null and cam != null:
+		bg.position.x = -cam.position.x * 0.25
+		bg.position.y = -cam.position.y * 0.15
+	if shake_time > 0.0:
+		shake_time -= delta
+		cam.offset = Vector2(randf_range(-10, 10), randf_range(-10, 10))
+	else:
+		cam.offset = Vector2.ZERO
 
+func shake() -> void:
+	shake_time = 0.35
+
+# ---------------------------------------------------------------------------
+# Building
+# ---------------------------------------------------------------------------
 func _add_ground_segment(rect: Rect2) -> void:
 	var body := StaticBody2D.new()
 	var shape := CollisionShape2D.new()
@@ -134,16 +163,25 @@ func _add_coin(pos: Vector2) -> void:
 	s.scale = Vector2(0.6, 0.6)
 	s.position = Vector2(0, -20)
 	a.add_child(s)
+	a.set_meta("sprite", s)
 	a.position = pos
 	a.body_entered.connect(func(body):
 		if body == player and coins.has(a):
 			coins.erase(a)
 			coins_left -= 1
+			_spawn_burst(a.global_position, Color(1.0, 0.85, 0.3))
+			_spawn_popup(a.global_position, "+1", Color(1.0, 0.9, 0.4))
 			a.queue_free()
 			coins_collected.emit(coins_left)
 	)
 	add_child(a)
 	coins.append(a)
+
+func _spin_coins() -> void:
+	for a in coins:
+		if is_instance_valid(a):
+			var s: Sprite2D = a.get_meta("sprite")
+			s.scale.x = (absf(sin(time * 3.0 + a.position.x)) * 0.6 + 0.3)
 
 func _build_enemies() -> void:
 	_add_enemy(Vector2(700, GROUND_Y - 14), 260)
@@ -173,6 +211,8 @@ func _add_enemy(pos: Vector2, span: float) -> void:
 		if body == player and enemies.has(e):
 			if body.velocity.y > 120.0 and body.global_position.y < e.global_position.y - 10.0:
 				enemies.erase(e)
+				_spawn_burst(e.global_position, Color(0.6, 1.0, 0.4))
+				_spawn_popup(e.global_position, "+50", Color(0.6, 1.0, 0.4))
 				e.queue_free()
 			else:
 				player_damaged.emit()
@@ -187,14 +227,13 @@ func _patrol_enemies(delta: float) -> void:
 		var span: float = e.get_meta("span")
 		var base_x: float = e.get_meta("base_x")
 		var d: float = e.get_meta("dir")
-		var x: float = e.position.x
-		if x > base_x + span / 2 or x < base_x - span / 2:
+		if e.position.x > base_x + span / 2 or e.position.x < base_x - span / 2:
 			d = -d
 			e.set_meta("dir", d)
 		e.position.x += d * 60.0 * delta
 		var s: Sprite2D = e.get_meta("sprite")
 		s.texture = slime1 if int(time * 4.0) % 2 == 0 else slime2
-		e.position.y = GROUND_Y - 14
+		s.flip_h = d < 0
 
 func _build_terminals() -> void:
 	_add_terminal(Vector2(1600, GROUND_Y - 40))
@@ -226,13 +265,14 @@ func _add_terminal(pos: Vector2) -> void:
 			a.set_meta("active", true)
 			a.queue_free()
 			terminals_left -= 1
+			_spawn_burst(a.global_position, Color(0.4, 0.7, 1.0))
+			_spawn_popup(a.global_position, "TERMINAL OK", Color(0.6, 0.9, 1.0))
 			terminals_activated.emit(terminals_left)
 	)
 	add_child(a)
 	terminals.append(a)
 
 func _check_terminal_activation() -> void:
-	# visual pulse for remaining terminals
 	for t in terminals:
 		if is_instance_valid(t):
 			var pulse := 0.5 + 0.5 * sin(time * 3.0)
@@ -256,7 +296,6 @@ func _build_goal() -> void:
 			exit_reached.emit()
 	)
 	add_child(a)
-	goal = a
 
 func _build_background() -> void:
 	for i in range(0, int(WORLD_W / 400)):
@@ -264,13 +303,53 @@ func _build_background() -> void:
 		c.texture = cloud1 if i % 3 == 0 else (cloud2 if i % 3 == 1 else cloud3)
 		c.scale = Vector2(0.8, 0.8)
 		c.position = Vector2(i * 400 + 120, 90 + (i % 3) * 30)
-		add_child(c)
+		bg.add_child(c)
 	for i in range(0, int(WORLD_W / 320)):
 		var b := Sprite2D.new()
 		b.texture = bush
 		b.position = Vector2(i * 320 + 60, GROUND_Y + 4)
-		add_child(b)
+		bg.add_child(b)
+
+# ---------------------------------------------------------------------------
+# Effects
+# ---------------------------------------------------------------------------
+func _spawn_particles(pos: Vector2, color: Color, amount := 12, spread := 180.0) -> void:
+	var p := CPUParticles2D.new()
+	p.position = pos
+	p.emitting = true
+	p.one_shot = true
+	p.amount = amount
+	p.lifetime = 0.5
+	p.direction = Vector2(0, -1)
+	p.spread = spread
+	p.initial_velocity_min = 60
+	p.initial_velocity_max = 180
+	p.gravity = Vector2(0, 320)
+	p.scale_amount_min = 2
+	p.scale_amount_max = 4
+	p.color = color
+	add_child(p)
+	get_tree().create_timer(1.0).timeout.connect(func(): p.queue_free())
+
+func _spawn_burst(pos: Vector2, color: Color) -> void:
+	_spawn_particles(pos, color, 14)
+
+func _spawn_dust(pos: Vector2, amount := 8) -> void:
+	_spawn_particles(pos, Color(0.8, 0.75, 0.7), amount, 120.0)
+
+func _spawn_popup(pos: Vector2, text: String, color: Color) -> void:
+	var l := Label.new()
+	l.text = text
+	l.position = pos
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", color)
+	add_child(l)
+	var tw := create_tween()
+	tw.tween_property(l, "position:y", l.position.y - 42, 0.8)
+	tw.tween_property(l, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(func(): l.queue_free())
 
 func reset_player() -> void:
 	player.position = Vector2(120, GROUND_Y - 120)
 	player.velocity = Vector2.ZERO
+	shake()

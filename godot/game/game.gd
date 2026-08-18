@@ -17,6 +17,7 @@ const COLOR_INFO := Color("#a5b4fc")
 
 var screens := {}
 var ui := {}
+var fade: ColorRect
 var world: Node2D
 var current_quest := 0
 var in_flow := false
@@ -31,8 +32,25 @@ var poll_count := 0
 
 func _ready() -> void:
 	_build_screens()
+	_build_fade()
 	_show_screen("menu")
 	_apply_profile_to_ui()
+
+func _build_fade() -> void:
+	fade = ColorRect.new()
+	fade.color = Color(0.04, 0.05, 0.1, 0.0)
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	fade.visible = false
+	add_child(fade)
+
+func _transition_to(name: String) -> void:
+	fade.visible = true
+	var tw := create_tween()
+	tw.tween_property(fade, "color:a", 1.0, 0.2)
+	tw.tween_callback(func(): _show_screen(name))
+	tw.tween_property(fade, "color:a", 0.0, 0.25)
+	tw.tween_callback(func(): fade.visible = false)
 
 # ---------------------------------------------------------------------------
 # UI helpers
@@ -99,9 +117,9 @@ func _build_menu() -> void:
 	ui.menu_player = _label("", 16, COLOR_INFO)
 	v.add_child(ui.menu_player)
 	v.add_child(_button("Play", func(): _start_run()))
-	v.add_child(_button("Player Profile", func(): _show_screen("profile")))
-	v.add_child(_button("Achievements", func(): _refresh_achievements(); _show_screen("achievements")))
-	v.add_child(_button("Settings / About", func(): _show_screen("settings")))
+	v.add_child(_button("Player Profile", func(): _transition_to("profile")))
+	v.add_child(_button("Achievements", func(): _refresh_achievements(); _transition_to("achievements")))
+	v.add_child(_button("Settings / About", func(): _transition_to("settings")))
 
 func _build_profile() -> void:
 	var s := _screen("profile")
@@ -114,32 +132,25 @@ func _build_profile() -> void:
 	v.add_theme_constant_override("separation", 12)
 	root.add_child(v)
 	v.add_child(_label("Player Profile", 28, COLOR_TITLE))
+	v.add_child(_label("Login with your Cardano wallet to create your player account.", 15, Color("#94a3b8")))
 	var rn := _row()
 	rn.add_child(_label("Name:", 16))
 	ui.profile_name = LineEdit.new()
 	ui.profile_name.custom_minimum_size.x = 300
 	rn.add_child(ui.profile_name)
 	v.add_child(rn)
-	var ra := _row()
-	ra.add_child(_label("Wallet address:", 16))
-	ui.profile_addr = LineEdit.new()
-	ui.profile_addr.placeholder_text = "addr_test1... (Cardano Preprod)"
-	ui.profile_addr.custom_minimum_size.x = 380
-	ra.add_child(ui.profile_addr)
-	v.add_child(ra)
 	ui.profile_stats = _label("", 15, COLOR_INFO)
 	v.add_child(ui.profile_stats)
 	var rb := _row()
-	rb.add_child(_button("Save", func():
+	rb.add_child(_button("Login with Wallet (CIP-30)", func(): _login_wallet()))
+	rb.add_child(_button("Continue as Guest", func():
 		profile.player_name = ui.profile_name.text.strip_edges()
-		profile.address = ui.profile_addr.text.strip_edges()
+		profile.address = ""
 		profile.save_profile()
 		_apply_profile_to_ui()
-		_cloud_save()
-		_set_label(ui, "profile_msg", "Profile saved OK", COLOR_OK)
+		_transition_to("menu")
 	))
-	rb.add_child(_button("Login with Wallet (CIP-30)", func(): _login_wallet()))
-	rb.add_child(_button("Back", func(): _show_screen("menu")))
+	rb.add_child(_button("Back", func(): _transition_to("menu")))
 	v.add_child(rb)
 	ui.profile_msg = _label("", 14)
 	v.add_child(ui.profile_msg)
@@ -232,7 +243,7 @@ func _build_achievements() -> void:
 	v.add_child(_label("Achievements", 28, COLOR_TITLE))
 	ui.achievements_list = VBoxContainer.new()
 	v.add_child(ui.achievements_list)
-	v.add_child(_button("Back", func(): _show_screen("menu")))
+	v.add_child(_button("Back", func(): _transition_to("menu")))
 
 func _build_settings() -> void:
 	var s := _screen("settings")
@@ -248,17 +259,17 @@ func _build_settings() -> void:
 	v.add_child(_label("Network: " + cardano_service.network, 16))
 	v.add_child(_label("Bridge: " + cardano_service.bridge_url, 14, COLOR_INFO))
 	v.add_child(_label("Godot platformer with Cardano Preprod integration. Gameplay stays off-chain; only quest milestones anchor on Cardano (label 674 + CIP-0170 attestation label 1701).", 14, Color("#94a3b8")))
-	v.add_child(_button("Back", func(): _show_screen("menu")))
+	v.add_child(_button("Back", func(): _transition_to("menu")))
 
 # ---------------------------------------------------------------------------
 # Profile / cloud
 # ---------------------------------------------------------------------------
 func _apply_profile_to_ui() -> void:
 	ui.profile_name.text = profile.player_name
-	ui.profile_addr.text = profile.address
 	_set_label(ui, "profile_stats", "Level %d  -  XP %d/%d  -  Coins %d  -  Terminals %d" % [profile.level, profile.xp, profile.level * 100, profile.fragments, profile.terminals], COLOR_INFO)
 	var who := "Player" if profile.player_name == "" else profile.player_name
-	ui.menu_player.text = "%s  -  Level %d  -  %d/%d XP" % [who, profile.level, profile.xp, profile.level * 100]
+	var login := "Logged in" if profile.address != "" else "Guest"
+	ui.menu_player.text = "%s  -  Level %d  -  %d/%d XP  -  %s" % [who, profile.level, profile.xp, profile.level * 100, login]
 
 func _cloud_save() -> void:
 	if profile.address == "":
@@ -285,7 +296,7 @@ func _cb_login_wallet(data) -> void:
 	if not cip30.apply_connect_result(data):
 		_set_label(ui, "profile_msg", "Wallet connect failed", COLOR_ERR)
 		return
-	ui.profile_addr.text = cip30.address
+	profile.player_name = ui.profile_name.text.strip_edges()
 	profile.address = cip30.address
 	profile.save_profile()
 	_load_cloud_profile()

@@ -11,6 +11,8 @@ const ARENA_W := 1600.0
 const ARENA_H := 900.0
 const COIN_TOTAL := 8
 const MONSTER_TOTAL := 3
+const CHUNK_SIZE := 512
+const CHUNK_RADIUS := 2
 
 var player: CharacterBody2D
 var cam: Camera2D
@@ -32,6 +34,17 @@ var grass2: Texture2D
 var bush_tex: Texture2D
 var vfx_tex: Texture2D
 var shake_strength := 0.0
+var map_rng := RandomNumberGenerator.new()
+var map_seed := 0
+var coin_positions: Array[Vector2] = []
+var monster_positions: Array[Vector2] = []
+var tree_positions: Array[Vector2] = []
+var pond_positions: Array[Vector2] = []
+var road_polygon := PackedVector2Array()
+var gate_position := Vector2.ZERO
+var active_chunks := {}
+var current_chunk := Vector2i(999999, 999999)
+var sign_tex: Texture2D
 
 func _safe_tex(path: String) -> Texture2D:
 	var t = load(path)
@@ -48,7 +61,9 @@ func _ready() -> void:
 	grass = _safe_tex("res://assets/tiles/grassMid.png")
 	grass2 = _safe_tex("res://assets/tiles/grassHalfMid.png")
 	bush_tex = _safe_tex("res://assets/background/bush.png")
+	sign_tex = _safe_tex("res://assets/tiles/signExit.png")
 	vfx_tex = _safe_tex("res://assets/effects/magic_vfx_sheet.png")
+	_generate_map()
 	_build_arena()
 	_build_coins()
 	_build_monsters()
@@ -57,6 +72,7 @@ func _ready() -> void:
 	player.name = "Player"
 	player.position = Vector2(ARENA_W / 2, ARENA_H / 2)
 	add_child(player)
+	_update_chunks(true)
 	var light := PointLight2D.new()
 	light.position = Vector2(0, -10)
 	light.energy = 1.3
@@ -65,10 +81,6 @@ func _ready() -> void:
 	light.texture = _radial_light_texture()
 	player.add_child(light)
 	cam = Camera2D.new()
-	cam.limit_left = 0
-	cam.limit_right = int(ARENA_W)
-	cam.limit_top = 0
-	cam.limit_bottom = int(ARENA_H)
 	cam.position_smoothing_enabled = true
 	player.add_child(cam)
 	var dark := CanvasModulate.new()
@@ -85,57 +97,128 @@ func _process(delta: float) -> void:
 	_update_projectiles(delta)
 	_poll_presence(delta)
 	_update_camera_shake(delta)
+	_update_chunks()
 	queue_redraw()
 
 # ---------------------------------------------------------------------------
 # Arena
 # ---------------------------------------------------------------------------
 func _build_arena() -> void:
-	var body := StaticBody2D.new()
-	var border := RectangleShape2D.new()
-	border.size = Vector2(ARENA_W, 20)
-	var t := CollisionShape2D.new(); t.shape = border; t.position = Vector2(ARENA_W / 2, 10); body.add_child(t)
-	var b := CollisionShape2D.new(); b.shape = border; b.position = Vector2(ARENA_W / 2, ARENA_H - 10); body.add_child(b)
-	var border2 := RectangleShape2D.new()
-	border2.size = Vector2(20, ARENA_H)
-	var l := CollisionShape2D.new(); l.shape = border2; l.position = Vector2(10, ARENA_H / 2); body.add_child(l)
-	var r := CollisionShape2D.new(); r.shape = border2; r.position = Vector2(ARENA_W - 10, ARENA_H / 2); body.add_child(r)
-	add_child(body)
+	# Endless world: no hard collision border and no camera limits.
+	pass
+
+func _update_chunks(force := false) -> void:
+	if player == null:
+		return
+	var next_chunk := Vector2i(floori(player.position.x / CHUNK_SIZE), floori(player.position.y / CHUNK_SIZE))
+	if not force and next_chunk == current_chunk:
+		return
+	current_chunk = next_chunk
+	var needed := {}
+	for x in range(current_chunk.x - CHUNK_RADIUS, current_chunk.x + CHUNK_RADIUS + 1):
+		for y in range(current_chunk.y - CHUNK_RADIUS, current_chunk.y + CHUNK_RADIUS + 1):
+			var coord := Vector2i(x, y)
+			needed[coord] = true
+			if not active_chunks.has(coord):
+				active_chunks[coord] = _generate_chunk(coord)
+	for coord in active_chunks.keys():
+		if not needed.has(coord):
+			active_chunks.erase(coord)
+	queue_redraw()
+
+func _generate_chunk(coord: Vector2i) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%s:%s:%s" % [map_seed, coord.x, coord.y])
+	var origin := Vector2(coord.x * CHUNK_SIZE, coord.y * CHUNK_SIZE)
+	var trees: Array[Vector2] = []
+	var flowers: Array[Vector2] = []
+	var ponds: Array[Vector2] = []
+	for _i in range(rng.randi_range(4, 9)):
+		trees.append(origin + Vector2(rng.randf_range(48, CHUNK_SIZE - 48), rng.randf_range(48, CHUNK_SIZE - 48)))
+	for _i in range(rng.randi_range(8, 18)):
+		flowers.append(origin + Vector2(rng.randf_range(20, CHUNK_SIZE - 20), rng.randf_range(20, CHUNK_SIZE - 20)))
+	if rng.randf() < 0.28:
+		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
+	return { "origin": origin, "trees": trees, "flowers": flowers, "ponds": ponds, "tone": rng.randf_range(-0.025, 0.025) }
+
+func _generate_map() -> void:
+	# A fresh deterministic layout is created every time World is instantiated.
+	map_rng.randomize()
+	map_seed = map_rng.seed
+	var side := map_rng.randi_range(0, 3)
+	match side:
+		0: gate_position = Vector2(80, map_rng.randf_range(180, ARENA_H - 180))
+		1: gate_position = Vector2(ARENA_W - 80, map_rng.randf_range(180, ARENA_H - 180))
+		2: gate_position = Vector2(map_rng.randf_range(220, ARENA_W - 220), 80)
+		_: gate_position = Vector2(map_rng.randf_range(220, ARENA_W - 220), ARENA_H - 80)
+	var center := Vector2(ARENA_W * 0.5, ARENA_H * 0.5)
+	var direction := (gate_position - center).normalized()
+	var normal := Vector2(-direction.y, direction.x)
+	var line: Array[Vector2] = []
+	for i in range(6):
+		var t := float(i) / 5.0
+		var jitter := 0.0 if i == 0 or i == 5 else map_rng.randf_range(-55, 55)
+		line.append(center.lerp(gate_position, t) + normal * jitter)
+	for p in line:
+		road_polygon.append(p + normal * 48)
+	for i in range(line.size() - 1, -1, -1):
+		road_polygon.append(line[i] - normal * 48)
+	var occupied: Array[Vector2] = [center, gate_position]
+	for i in range(COIN_TOTAL):
+		var p := _random_open_point(occupied, 115.0)
+		coin_positions.append(p)
+		occupied.append(p)
+	for i in range(MONSTER_TOTAL):
+		var p := _random_open_point(occupied, 150.0)
+		monster_positions.append(p)
+		occupied.append(p)
+	for i in range(13):
+		tree_positions.append(_random_open_point(occupied, 75.0))
+	for i in range(3):
+		var p := _random_open_point(occupied, 170.0)
+		pond_positions.append(p)
+		occupied.append(p)
+
+func _random_open_point(occupied: Array[Vector2], min_distance: float) -> Vector2:
+	for _attempt in range(80):
+		var candidate := Vector2(map_rng.randf_range(100, ARENA_W - 100), map_rng.randf_range(100, ARENA_H - 100))
+		var valid := true
+		for p in occupied:
+			if candidate.distance_to(p) < min_distance:
+				valid = false
+				break
+		if valid:
+			return candidate
+	return Vector2(map_rng.randf_range(100, ARENA_W - 100), map_rng.randf_range(100, ARENA_H - 100))
 
 func _draw() -> void:
-	# Calm top-down field: broad shapes first, details kept deliberately subtle.
-	draw_rect(Rect2(0, 0, ARENA_W, ARENA_H), Color("#315f4c"))
-	for gx in range(0, int(ARENA_W), 80):
-		for gy in range(0, int(ARENA_H), 80):
-			if int(gx / 80 + gy / 80) % 2 == 0:
-				draw_rect(Rect2(gx, gy, 80, 80), Color(0.08, 0.22, 0.16, 0.08))
-	# A single low-contrast road guides the eye toward the gate.
-	var road := PackedVector2Array([
-		Vector2(0, 470), Vector2(360, 430), Vector2(760, 475), Vector2(1160, 425), Vector2(ARENA_W, 455),
-		Vector2(ARENA_W, 555), Vector2(1160, 525), Vector2(760, 575), Vector2(360, 530), Vector2(0, 570),
-	])
-	draw_colored_polygon(road, Color("#8a795d"))
-	draw_polyline(road, Color(1.0, 0.9, 0.68, 0.12), 3.0)
-	# Small tree clusters frame the play space without covering gameplay.
-	for i in range(7):
-		var p := Vector2(115 + i * 225, 92 if i % 2 == 0 else 810)
-		draw_circle(p + Vector2(4, 7), 27, Color(0, 0, 0, 0.14))
-		draw_circle(p, 26, Color("#21483b"))
-		draw_circle(p - Vector2(7, 7), 18, Color("#3f7557"))
+	# Only nearby chunks are retained and rendered; crossing a boundary generates more.
+	for chunk in active_chunks.values():
+		var origin: Vector2 = chunk.origin
+		var tone: float = chunk.tone
+		draw_rect(Rect2(origin, Vector2(CHUNK_SIZE, CHUNK_SIZE)), Color(0.19 + tone, 0.37 + tone, 0.30 + tone))
+		for p in chunk.ponds:
+			draw_circle(p, 58, Color("#285b68"))
+			draw_circle(p, 49, Color("#367b8a"))
+		for p in chunk.flowers:
+			draw_circle(p, 2.5, Color("#d5e889") if int(p.x + p.y) % 2 == 0 else Color("#f2c879"))
+		for p in chunk.trees:
+			draw_circle(p + Vector2(4, 8), 25, Color(0, 0, 0, 0.16))
+			draw_texture_rect(bush_tex, Rect2(p - Vector2(28, 28), Vector2(56, 56)), false)
+	# Quest actors use the actual repository sprites.
+	for m in monsters:
+		var slime := slime1 if int(time * 7.0) % 2 == 0 else slime2
+		draw_texture_rect(slime, Rect2(m.pos - Vector2(28, 38), Vector2(56, 56)), false)
 	# gate glow
-	draw_circle(Vector2(ARENA_W - 80, ARENA_H / 2), 30, Color(0.3, 0.9, 0.45, 0.4))
-	draw_circle(Vector2(ARENA_W - 80, ARENA_H / 2), 18, Color(0.35, 0.95, 0.5))
+	draw_circle(gate_position, 30, Color(0.3, 0.9, 0.45, 0.4))
+	draw_circle(gate_position, 18, Color(0.35, 0.95, 0.5))
+	draw_texture_rect(sign_tex, Rect2(gate_position - Vector2(32, 62), Vector2(64, 64)), false)
 
 # ---------------------------------------------------------------------------
 # Coins / monsters / gate
 # ---------------------------------------------------------------------------
 func _build_coins() -> void:
-	var positions := [
-		Vector2(300, 300), Vector2(700, 250), Vector2(1200, 350),
-		Vector2(400, 650), Vector2(900, 700), Vector2(1300, 650),
-		Vector2(600, 500), Vector2(1100, 500),
-	]
-	for p in positions:
+	for p in coin_positions:
 		var a := Area2D.new()
 		var c := CollisionShape2D.new()
 		var cs := CircleShape2D.new(); cs.radius = 26
@@ -155,9 +238,9 @@ func _build_coins() -> void:
 		add_child(a)
 
 func _build_monsters() -> void:
-	var spots := [Vector2(500, 400), Vector2(1050, 400), Vector2(800, 700)]
-	for s in spots:
-		monsters.append({ "pos": s, "hp": 3, "dir": Vector2(1, 0), "sprite": null })
+	for p in monster_positions:
+		var angle := map_rng.randf_range(0, TAU)
+		monsters.append({ "pos": p, "hp": 3, "dir": Vector2.from_angle(angle), "sprite": null })
 
 func _wander_monsters(delta: float) -> void:
 	for m in monsters:
@@ -174,7 +257,7 @@ func _build_gate() -> void:
 	var c := CollisionShape2D.new()
 	var cs := CircleShape2D.new(); cs.radius = 40
 	c.shape = cs; a.add_child(c)
-	a.position = Vector2(ARENA_W - 80, ARENA_H / 2)
+	a.position = gate_position
 	a.body_entered.connect(func(body):
 		if body == player:
 			gate_reached.emit()

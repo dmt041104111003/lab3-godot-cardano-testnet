@@ -435,7 +435,7 @@ func _update_quest_hud() -> void:
 	ui.play_quest.text = QUEST_NAMES[current_quest]
 	if world != null:
 		ui.play_progress.text = "Coins %d/%d   Monsters %d/%d" % [8 - int(world.coins_left), 8, 3 - int(world.monsters_left), 3]
-		ui.inventory.text = "Inv: Coins %d  Kills %d  |  J: Slash  K: Fireball" % [profile.fragments, profile.terminals]
+		ui.inventory.text = "MAP #%04d  |  J: Slash  K: Fireball" % [absi(int(world.map_seed)) % 10000]
 
 func _on_coins(n: int) -> void:
 	var collected := 8 - n

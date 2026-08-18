@@ -1,5 +1,5 @@
 extends Node
-## Runtime quest state (autoload) — one play session.
+## Runtime quest state (autoload) - one play session.
 
 var fragments_collected := 0
 var terminals_activated := 0

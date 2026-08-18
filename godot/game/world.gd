@@ -1,127 +1,276 @@
 extends Node2D
-## Playable level: collect energy fragments, activate terminals, reach the exit.
-## Uses Kenney CC0 tiles for the dungeon ground/walls.
+## Platformer level: run & jump, collect coins, activate terminals, reach the exit.
+## Uses Kenney Platformer Art (Deluxe) / alien sprites (CC0).
 
-signal fragments_collected(count)
+signal coins_collected(count)
 signal terminals_activated(count)
 signal exit_reached
+signal player_damaged
 
-const VIEW_W := 1152.0
-const VIEW_H := 720.0
-const TILE := 48.0
-const SPEED := 300.0
-const FRAGMENT_TOTAL := 5
-const TERMINAL_TOTAL := 3
+const WORLD_W := 3200.0
+const GROUND_Y := 620.0
+const TILE := 70.0
+const COIN_TOTAL := 8
+const TERMINAL_TOTAL := 2
 
-var player := Vector2(VIEW_W / 2, VIEW_H / 2)
-var fragments: Array[Vector2] = []
-var terminals: Array[Vector2] = []
-var exit_pos := Vector2(VIEW_W - 72, VIEW_H - 60)
-var show_exit := false
-var wall_blocks: Array[Vector2] = []
-var hud: Label
+var player: CharacterBody2D
+var coins: Array[Area2D] = []
+var terminals: Array[Area2D] = []
+var enemies: Array[Area2D] = []
+var goal: Area2D
+var coins_left := COIN_TOTAL
+var terminals_left := TERMINAL_TOTAL
 var time := 0.0
 
-var floor_tex: Texture2D
-var floor_tex2: Texture2D
-var wall_tex: Texture2D
-var wall_tex2: Texture2D
+var coin_tex: Texture2D
+var grass_mid: Texture2D
+var grass_half: Texture2D
+var sign_tex: Texture2D
+var slime1: Texture2D
+var slime2: Texture2D
+var cloud1: Texture2D
+var cloud2: Texture2D
+var cloud3: Texture2D
+var bush: Texture2D
 
 func _ready() -> void:
-	floor_tex = load("res://assets/tiles/tile_0036.png")
-	floor_tex2 = load("res://assets/tiles/tile_0038.png")
-	wall_tex = load("res://assets/tiles/tile_0000.png")
-	wall_tex2 = load("res://assets/tiles/tile_0012.png")
-	fragments = [
-		Vector2(140, 160), Vector2(VIEW_W - 140, 160), Vector2(140, VIEW_H - 160),
-		Vector2(VIEW_W - 140, VIEW_H - 160), Vector2(VIEW_W / 2, 120),
-	]
-	terminals = [
-		Vector2(320, 300), Vector2(VIEW_W - 320, 300), Vector2(VIEW_W / 2, VIEW_H - 160),
-	]
-	wall_blocks = [
-		Vector2(500, 260), Vector2(620, 260), Vector2(560, 380),
-		Vector2(380, 460), Vector2(740, 460),
-	]
-	hud = Label.new()
-	hud.position = Vector2(16, 12)
-	hud.add_theme_font_size_override("font_size", 18)
-	add_child(hud)
-	update_hud()
-
-func set_show_exit(v: bool) -> void:
-	show_exit = v
-	update_hud()
-
-func update_hud() -> void:
-	hud.text = "Fragments %d/%d   Terminals %d/%d   |   Arrows/WASD move · ESC exit" % [
-		FRAGMENT_TOTAL - fragments.size(), FRAGMENT_TOTAL,
-		TERMINAL_TOTAL - terminals.size(), TERMINAL_TOTAL,
-	]
+	coin_tex = load("res://assets/items/coinGold.png")
+	grass_mid = load("res://assets/tiles/grassMid.png")
+	grass_half = load("res://assets/tiles/grassHalfMid.png")
+	sign_tex = load("res://assets/tiles/signExit.png")
+	slime1 = load("res://assets/enemies/slimeWalk1.png")
+	slime2 = load("res://assets/enemies/slimeWalk2.png")
+	cloud1 = load("res://assets/background/cloud1.png")
+	cloud2 = load("res://assets/background/cloud2.png")
+	cloud3 = load("res://assets/background/cloud3.png")
+	bush = load("res://assets/background/bush.png")
+	_build_background()
+	_build_ground()
+	_build_platforms()
+	_build_coins()
+	_build_enemies()
+	_build_terminals()
+	_build_goal()
+	player = load("res://game/player.gd").new()
+	player.name = "Player"
+	player.position = Vector2(120, GROUND_Y - 120)
+	add_child(player)
+	var cam := Camera2D.new()
+	cam.limit_left = 0
+	cam.limit_right = int(WORLD_W)
+	cam.limit_top = 0
+	cam.limit_bottom = 720
+	cam.position_smoothing_enabled = true
+	player.add_child(cam)
 
 func _process(delta: float) -> void:
 	time += delta
-	var dir := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-	player += dir * SPEED * delta
-	player.x = clampf(player.x, TILE, VIEW_W - TILE)
-	player.y = clampf(player.y, TILE, VIEW_H - TILE)
-	for f in fragments.duplicate():
-		if player.distance_to(f) < 42.0:
-			fragments.erase(f)
-			fragments_collected.emit(FRAGMENT_TOTAL - fragments.size())
-			update_hud()
-	for t in terminals.duplicate():
-		if player.distance_to(t) < 46.0:
-			terminals.erase(t)
-			terminals_activated.emit(TERMINAL_TOTAL - terminals.size())
-			update_hud()
-	for wb in wall_blocks:
-		if player.distance_to(wb) < 34.0:
-			player = Vector2(VIEW_W / 2, VIEW_H / 2)
-			break
-	if show_exit and player.distance_to(exit_pos) < 50.0:
-		exit_reached.emit()
-	queue_redraw()
+	_patrol_enemies(delta)
+	_check_terminal_activation()
 
-func _draw() -> void:
-	# dungeon floor (repeating tiles)
-	for gx in range(0, int(VIEW_W / TILE)):
-		for gy in range(0, int(VIEW_H / TILE)):
-			var tex := floor_tex if (gx + gy) % 2 == 0 else floor_tex2
-			draw_texture_rect(tex, Rect2(gx * TILE, gy * TILE, TILE, TILE), false)
-	# wall border
-	var cols := int(VIEW_W / TILE)
-	var rows := int(VIEW_H / TILE)
-	for gx in range(cols):
-		draw_texture_rect(wall_tex, Rect2(gx * TILE, 0, TILE, TILE), false)
-		draw_texture_rect(wall_tex2, Rect2(gx * TILE, (rows - 1) * TILE, TILE, TILE), false)
-	for gy in range(rows):
-		draw_texture_rect(wall_tex, Rect2(0, gy * TILE, TILE, TILE), false)
-		draw_texture_rect(wall_tex2, Rect2((cols - 1) * TILE, gy * TILE, TILE, TILE), false)
-	# inner wall blocks
-	for wb in wall_blocks:
-		draw_texture_rect(wall_tex, Rect2(wb - Vector2(TILE / 2, TILE / 2), Vector2(TILE, TILE)), false)
-	# exit portal
-	if show_exit:
-		var pulse := 0.5 + 0.5 * sin(time * 3.0)
-		draw_circle(exit_pos, 30 + pulse * 6, Color(0.3, 0.9, 0.45, 0.4))
-		draw_circle(exit_pos, 20, Color(0.35, 0.95, 0.5))
-		draw_circle(exit_pos, 10, Color(0.95, 1.0, 0.9))
-	# terminals
+func _add_ground_segment(rect: Rect2) -> void:
+	var body := StaticBody2D.new()
+	var shape := CollisionShape2D.new()
+	var rs := RectangleShape2D.new()
+	rs.size = rect.size
+	shape.shape = rs
+	shape.position = rect.position + rect.size / 2
+	body.add_child(shape)
+	add_child(body)
+	var t := int(rect.size.x / TILE)
+	for i in range(t):
+		var s := Sprite2D.new()
+		s.texture = grass_mid
+		s.position = Vector2(rect.position.x + i * TILE + TILE / 2, rect.position.y + rect.size.y / 2)
+		add_child(s)
+
+func _build_ground() -> void:
+	_add_ground_segment(Rect2(0, GROUND_Y, WORLD_W, 100))
+
+func _build_platforms() -> void:
+	_add_platform(Vector2(520, 470), 3)
+	_add_platform(Vector2(940, 390), 3)
+	_add_platform(Vector2(1330, 320), 4)
+	_add_platform(Vector2(1850, 400), 3)
+	_add_platform(Vector2(2350, 310), 4)
+	_add_platform(Vector2(2860, 400), 3)
+
+func _add_platform(center: Vector2, tiles: int) -> void:
+	var w := tiles * TILE
+	var body := StaticBody2D.new()
+	var shape := CollisionShape2D.new()
+	var rs := RectangleShape2D.new()
+	rs.size = Vector2(w, TILE)
+	shape.shape = rs
+	body.add_child(shape)
+	body.position = center
+	add_child(body)
+	for i in range(tiles):
+		var s := Sprite2D.new()
+		s.texture = grass_mid
+		s.position = Vector2(center.x + (i - (tiles - 1) / 2.0) * TILE, center.y)
+		add_child(s)
+
+func _build_coins() -> void:
+	var positions := [
+		Vector2(180, GROUND_Y - 90), Vector2(360, GROUND_Y - 90),
+		Vector2(520, 470 - 70), Vector2(940, 390 - 70),
+		Vector2(1330, 320 - 70), Vector2(1850, 400 - 70),
+		Vector2(2350, 310 - 70), Vector2(3000, GROUND_Y - 90),
+	]
+	for p in positions:
+		_add_coin(p)
+
+func _add_coin(pos: Vector2) -> void:
+	var a := Area2D.new()
+	var c := CollisionShape2D.new()
+	var cs := CircleShape2D.new()
+	cs.radius = 24
+	c.shape = cs
+	c.position = Vector2(0, -20)
+	a.add_child(c)
+	var s := Sprite2D.new()
+	s.texture = coin_tex
+	s.scale = Vector2(0.6, 0.6)
+	s.position = Vector2(0, -20)
+	a.add_child(s)
+	a.position = pos
+	a.body_entered.connect(func(body):
+		if body == player and coins.has(a):
+			coins.erase(a)
+			coins_left -= 1
+			a.queue_free()
+			coins_collected.emit(coins_left)
+	)
+	add_child(a)
+	coins.append(a)
+
+func _build_enemies() -> void:
+	_add_enemy(Vector2(700, GROUND_Y - 14), 260)
+	_add_enemy(Vector2(1200, GROUND_Y - 14), 220)
+	_add_enemy(Vector2(2100, GROUND_Y - 14), 320)
+	_add_enemy(Vector2(2650, GROUND_Y - 14), 260)
+
+func _add_enemy(pos: Vector2, span: float) -> void:
+	var e := Area2D.new()
+	var c := CollisionShape2D.new()
+	var cs := CircleShape2D.new()
+	cs.radius = 20
+	c.shape = cs
+	c.position = Vector2(0, -12)
+	e.add_child(c)
+	var s := Sprite2D.new()
+	s.texture = slime1
+	s.scale = Vector2(1.6, 1.6)
+	s.position = Vector2(0, -14)
+	e.add_child(s)
+	e.position = pos
+	e.set_meta("span", span)
+	e.set_meta("base_x", pos.x)
+	e.set_meta("dir", 1.0)
+	e.set_meta("sprite", s)
+	e.body_entered.connect(func(body):
+		if body == player and enemies.has(e):
+			if body.velocity.y > 120.0 and body.global_position.y < e.global_position.y - 10.0:
+				enemies.erase(e)
+				e.queue_free()
+			else:
+				player_damaged.emit()
+	)
+	add_child(e)
+	enemies.append(e)
+
+func _patrol_enemies(delta: float) -> void:
+	for e in enemies:
+		if not is_instance_valid(e):
+			continue
+		var span: float = e.get_meta("span")
+		var base_x: float = e.get_meta("base_x")
+		var d: float = e.get_meta("dir")
+		var x: float = e.position.x
+		if x > base_x + span / 2 or x < base_x - span / 2:
+			d = -d
+			e.set_meta("dir", d)
+		e.position.x += d * 60.0 * delta
+		var s: Sprite2D = e.get_meta("sprite")
+		s.texture = slime1 if int(time * 4.0) % 2 == 0 else slime2
+		e.position.y = GROUND_Y - 14
+
+func _build_terminals() -> void:
+	_add_terminal(Vector2(1600, GROUND_Y - 40))
+	_add_terminal(Vector2(2550, GROUND_Y - 40))
+
+func _add_terminal(pos: Vector2) -> void:
+	var a := Area2D.new()
+	var c := CollisionShape2D.new()
+	var cs := CircleShape2D.new()
+	cs.radius = 34
+	c.shape = cs
+	a.add_child(c)
+	var poly := Polygon2D.new()
+	poly.polygon = PackedVector2Array([
+		Vector2(-22, 0), Vector2(22, 0), Vector2(16, 44), Vector2(-16, 44),
+	])
+	poly.color = Color(0.35, 0.6, 1.0)
+	a.add_child(poly)
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(-12, 4), Vector2(12, 4), Vector2(8, 28), Vector2(-8, 28),
+	])
+	glow.color = Color(0.8, 0.9, 1.0)
+	a.add_child(glow)
+	a.position = pos
+	a.set_meta("active", false)
+	a.body_entered.connect(func(body):
+		if body == player and not a.get_meta("active") and terminals.has(a):
+			a.set_meta("active", true)
+			a.queue_free()
+			terminals_left -= 1
+			terminals_activated.emit(terminals_left)
+	)
+	add_child(a)
+	terminals.append(a)
+
+func _check_terminal_activation() -> void:
+	# visual pulse for remaining terminals
 	for t in terminals:
-		draw_rect(Rect2(t - Vector2(22, 22), Vector2(44, 44)), Color(0.25, 0.55, 1.0))
-		draw_rect(Rect2(t - Vector2(16, 16), Vector2(32, 32)), Color(0.6, 0.85, 1.0))
-		draw_circle(t - Vector2(0, 6), 5, Color(0.15, 0.35, 0.9))
-	# fragments (crystals)
-	for f in fragments:
-		draw_polygon(
-			PackedVector2Array([f + Vector2(0, -14), f + Vector2(10, 0), f + Vector2(0, 14), f + Vector2(-10, 0)]),
-			PackedColorArray([Color(0.98, 0.8, 0.2), Color(1.0, 0.9, 0.4), Color(0.95, 0.7, 0.1), Color(1.0, 0.85, 0.3)]),
-		)
-		draw_circle(f, 16, Color(0.98, 0.85, 0.3, 0.25))
-	# player hero
-	draw_circle(player + Vector2(0, 16), 16, Color(0, 0, 0, 0.3))
-	draw_circle(player, 17, Color(0.1, 0.7, 0.6))
-	draw_circle(player - Vector2(0, 10), 9, Color(0.95, 0.85, 0.7))
-	draw_circle(player + Vector2(-4, -11), 2, Color(0.1, 0.1, 0.2))
-	draw_circle(player + Vector2(4, -11), 2, Color(0.1, 0.1, 0.2))
+		if is_instance_valid(t):
+			var pulse := 0.5 + 0.5 * sin(time * 3.0)
+			t.get_child(1).color = Color(0.35 + 0.1 * pulse, 0.6, 1.0)
+
+func _build_goal() -> void:
+	var a := Area2D.new()
+	var c := CollisionShape2D.new()
+	var cs := CircleShape2D.new()
+	cs.radius = 36
+	c.shape = cs
+	c.position = Vector2(0, -30)
+	a.add_child(c)
+	var s := Sprite2D.new()
+	s.texture = sign_tex
+	s.position = Vector2(0, -20)
+	a.add_child(s)
+	a.position = Vector2(WORLD_W - 100, GROUND_Y - 40)
+	a.body_entered.connect(func(body):
+		if body == player:
+			exit_reached.emit()
+	)
+	add_child(a)
+	goal = a
+
+func _build_background() -> void:
+	for i in range(0, int(WORLD_W / 400)):
+		var c := Sprite2D.new()
+		c.texture = cloud1 if i % 3 == 0 else (cloud2 if i % 3 == 1 else cloud3)
+		c.scale = Vector2(0.8, 0.8)
+		c.position = Vector2(i * 400 + 120, 90 + (i % 3) * 30)
+		add_child(c)
+	for i in range(0, int(WORLD_W / 320)):
+		var b := Sprite2D.new()
+		b.texture = bush
+		b.position = Vector2(i * 320 + 60, GROUND_Y + 4)
+		add_child(b)
+
+func reset_player() -> void:
+	player.position = Vector2(120, GROUND_Y - 120)
+	player.velocity = Vector2.ZERO

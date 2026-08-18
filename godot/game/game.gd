@@ -1,15 +1,13 @@
-﻿extends Control
-## LAB3 Godot Ã— Cardano Game â€” main controller.
-## Screens: menu, profile, play (world), verify, achievements, settings.
+extends Control
+## LAB3 Godot x Cardano Game - main controller.
+## Screens: menu, profile, play (platformer world), verify, achievements, settings.
 
 const QUEST_NAMES := [
-	"Quest 1: Collect 5 Energy Fragments",
-	"Quest 2: Activate 3 Terminals",
+	"Quest 1: Collect 5 Coins",
+	"Quest 2: Activate 2 Terminals",
 	"Quest 3: Reach the Exit",
 ]
 const QUEST_IDS := ["quest_1", "quest_2", "quest_3"]
-const FRAGMENT_TOTAL := 5
-const TERMINAL_TOTAL := 3
 
 const COLOR_TITLE := Color("#22c1a6")
 const COLOR_OK := Color("#4ade80")
@@ -26,10 +24,9 @@ var flow_quest := 0
 var proof_tx_hash := ""
 var attest_tx_hash := ""
 var pending_attest_hash := ""
-var verified_quest := ""
 var poll_timer: Timer
 var poll_hash := ""
-var poll_phase := ""   # "proof" | "attest"
+var poll_phase := ""
 var poll_count := 0
 
 func _ready() -> void:
@@ -70,6 +67,11 @@ func _show_screen(name: String) -> void:
 	for k in screens.keys():
 		screens[k].visible = (k == name)
 
+func _set_label(d: Dictionary, key: String, text: String, color: Color) -> void:
+	if d.has(key) and d[key] is Label:
+		d[key].text = text
+		d[key].add_theme_color_override("font_color", color)
+
 # ---------------------------------------------------------------------------
 # Screens
 # ---------------------------------------------------------------------------
@@ -91,8 +93,8 @@ func _build_menu() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 14)
 	root.add_child(v)
-	v.add_child(_label("LAB3 Godot Ã— Cardano Game", 34, COLOR_TITLE))
-	v.add_child(_label("Play quests, earn XP, and get verifiable Cardano achievements.", 16, Color("#94a3b8")))
+	v.add_child(_label("LAB3 Godot x Cardano Game", 34, COLOR_TITLE))
+	v.add_child(_label("Run, jump, complete quests and earn verifiable Cardano achievements.", 16, Color("#94a3b8")))
 	v.add_child(Label.new())
 	ui.menu_player = _label("", 16, COLOR_INFO)
 	v.add_child(ui.menu_player)
@@ -133,8 +135,10 @@ func _build_profile() -> void:
 		profile.address = ui.profile_addr.text.strip_edges()
 		profile.save_profile()
 		_apply_profile_to_ui()
-		_set_label(ui, "profile_msg", "Profile saved âœ“", COLOR_OK)
+		_cloud_save()
+		_set_label(ui, "profile_msg", "Profile saved OK", COLOR_OK)
 	))
+	rb.add_child(_button("Login with Wallet (CIP-30)", func(): _login_wallet()))
 	rb.add_child(_button("Back", func(): _show_screen("menu")))
 	v.add_child(rb)
 	ui.profile_msg = _label("", 14)
@@ -153,6 +157,8 @@ func _build_play() -> void:
 	top.add_child(h)
 	ui.play_quest = _label("", 17, COLOR_TITLE)
 	h.add_child(ui.play_quest)
+	ui.play_progress = _label("", 14, COLOR_INFO)
+	h.add_child(ui.play_progress)
 	h.add_child(Label.new())
 	var back := _button("Exit to Menu", func(): _stop_run())
 	back.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -183,13 +189,15 @@ func _build_verify() -> void:
 	v.add_child(ui.verify_attest)
 	var row_btn := _row()
 	var open_proof := _button("Open Proof Tx", func():
-		if proof_tx_hash != "": OS.shell_open(cardano_service.explorer_url(proof_tx_hash))
+		if proof_tx_hash != "":
+			OS.shell_open(cardano_service.explorer_url(proof_tx_hash))
 	)
 	open_proof.disabled = true
 	ui.open_proof = open_proof
 	row_btn.add_child(open_proof)
 	var open_attest := _button("Open Attestation Tx", func():
-		if attest_tx_hash != "": OS.shell_open(cardano_service.explorer_url(attest_tx_hash))
+		if attest_tx_hash != "":
+			OS.shell_open(cardano_service.explorer_url(attest_tx_hash))
 	)
 	open_attest.disabled = true
 	ui.open_attest = open_attest
@@ -239,24 +247,76 @@ func _build_settings() -> void:
 	v.add_child(_label("Settings / About", 28, COLOR_TITLE))
 	v.add_child(_label("Network: " + cardano_service.network, 16))
 	v.add_child(_label("Bridge: " + cardano_service.bridge_url, 14, COLOR_INFO))
-	v.add_child(_label("Godot game with Cardano Preprod integration. Gameplay stays off-chain; only quest milestones anchor on Cardano (metadata label 674 + CIP-0170 attestation label 1701).", 14, Color("#94a3b8")))
+	v.add_child(_label("Godot platformer with Cardano Preprod integration. Gameplay stays off-chain; only quest milestones anchor on Cardano (label 674 + CIP-0170 attestation label 1701).", 14, Color("#94a3b8")))
 	v.add_child(_button("Back", func(): _show_screen("menu")))
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Profile / cloud
 # ---------------------------------------------------------------------------
-func _set_label(d: Dictionary, key: String, text: String, color: Color) -> void:
-	if d.has(key) and d[key] is Label:
-		d[key].text = text
-		d[key].add_theme_color_override("font_color", color)
-
 func _apply_profile_to_ui() -> void:
 	ui.profile_name.text = profile.player_name
 	ui.profile_addr.text = profile.address
-	_set_label(ui, "profile_stats", "Level %d  Â·  XP %d/%d  Â·  Fragments %d  Â·  Terminals %d" % [profile.level, profile.xp, profile.level * 100, profile.fragments, profile.terminals], COLOR_INFO)
+	_set_label(ui, "profile_stats", "Level %d  -  XP %d/%d  -  Coins %d  -  Terminals %d" % [profile.level, profile.xp, profile.level * 100, profile.fragments, profile.terminals], COLOR_INFO)
 	var who := "Player" if profile.player_name == "" else profile.player_name
-	ui.menu_player.text = "%s  Â·  Level %d  Â·  %d/%d XP" % [who, profile.level, profile.xp, profile.level * 100]
+	ui.menu_player.text = "%s  -  Level %d  -  %d/%d XP" % [who, profile.level, profile.xp, profile.level * 100]
 
+func _cloud_save() -> void:
+	if profile.address == "":
+		return
+	var data := {
+		"name": profile.player_name,
+		"xp": profile.xp,
+		"level": profile.level,
+		"quests": profile.quests,
+		"verified": profile.verified,
+		"fragments": profile.fragments,
+		"terminals": profile.terminals,
+	}
+	cardano_service.save_player(profile.address, data, func(_r: int, _c: int, _d): pass)
+
+func _login_wallet() -> void:
+	if not cip30.is_available():
+		_set_label(ui, "profile_msg", "No CIP-30 wallet in this browser. Enter an address manually.", COLOR_WARN)
+		return
+	_set_label(ui, "profile_msg", "Connecting wallet...", COLOR_WARN)
+	cip30.connect_wallet(_cb_login_wallet)
+
+func _cb_login_wallet(data) -> void:
+	if not cip30.apply_connect_result(data):
+		_set_label(ui, "profile_msg", "Wallet connect failed", COLOR_ERR)
+		return
+	ui.profile_addr.text = cip30.address
+	profile.address = cip30.address
+	profile.save_profile()
+	_load_cloud_profile()
+
+func _load_cloud_profile() -> void:
+	_set_label(ui, "profile_msg", "Loading cloud profile...", COLOR_WARN)
+	cardano_service.load_player(profile.address, _cb_load_cloud)
+
+func _cb_load_cloud(result: int, code: int, data) -> void:
+	if result == HTTPRequest.RESULT_SUCCESS and code == 200 and data is Dictionary and data.get("ok", false) and data.get("data") != null:
+		var d = data.get("data")
+		profile.player_name = str(d.get("name", profile.player_name))
+		profile.xp = int(d.get("xp", profile.xp))
+		profile.level = int(d.get("level", profile.level))
+		var q = d.get("quests", {})
+		if q is Dictionary:
+			for k in profile.quests.keys():
+				profile.quests[k] = bool(q.get(k, profile.quests[k]))
+		var v = d.get("verified", {})
+		if v is Dictionary:
+			for k in profile.verified.keys():
+				profile.verified[k] = bool(v.get(k, profile.verified[k]))
+		profile.save_profile()
+		_apply_profile_to_ui()
+		_set_label(ui, "profile_msg", "Cloud profile loaded for " + profile.address.substr(0, 20) + "... OK", COLOR_OK)
+	else:
+		_set_label(ui, "profile_msg", "New player - no cloud profile yet. Save to create it.", COLOR_INFO)
+
+# ---------------------------------------------------------------------------
+# Run
+# ---------------------------------------------------------------------------
 func _start_run() -> void:
 	quest_state.reset_run()
 	current_quest = 0
@@ -268,9 +328,10 @@ func _in_play() -> void:
 		world.queue_free()
 	world = preload("res://game/world.gd").new()
 	add_child(world)
-	world.fragments_collected.connect(_on_fragments)
+	world.coins_collected.connect(_on_coins)
 	world.terminals_activated.connect(_on_terminals)
 	world.exit_reached.connect(_on_exit)
+	world.player_damaged.connect(_on_player_damaged)
 	_update_quest_hud()
 
 func _stop_run() -> void:
@@ -283,37 +344,43 @@ func _stop_run() -> void:
 func _update_quest_hud() -> void:
 	ui.play_quest.text = QUEST_NAMES[current_quest]
 	if world != null:
-		world.set_show_exit(current_quest >= 2)
+		ui.play_progress.text = "Coins %d/%d   Terminals %d/%d" % [8 - int(world.coins_left), 8, 2 - int(world.terminals_left), 2]
 
-func _on_fragments(n: int) -> void:
-	quest_state.fragments_collected = n
-	if current_quest == 0 and n >= FRAGMENT_TOTAL:
+func _on_coins(n: int) -> void:
+	var collected := 8 - n
+	profile.fragments = maxi(profile.fragments, collected)
+	if current_quest == 0 and collected >= 5:
 		_complete_quest(0)
+	else:
+		_update_quest_hud()
 
 func _on_terminals(n: int) -> void:
-	quest_state.terminals_activated = n
-	if current_quest == 1 and n >= TERMINAL_TOTAL:
+	var activated := 2 - n
+	profile.terminals = maxi(profile.terminals, activated)
+	if current_quest == 1 and activated >= 2:
 		_complete_quest(1)
+	else:
+		_update_quest_hud()
 
 func _on_exit() -> void:
 	if current_quest == 2:
 		_complete_quest(2)
 
+func _on_player_damaged() -> void:
+	world.reset_player()
+
 func _complete_quest(index: int) -> void:
 	quest_state.milestone_reached = true
 	var id: String = QUEST_IDS[index]
-	quest_state.set("quest_%d_done" % (index + 1), true)
-	profile.fragments = maxi(profile.fragments, quest_state.fragments_collected)
-	profile.terminals = maxi(profile.terminals, quest_state.terminals_activated)
 	profile.add_xp(50 + index * 25)
 	if index < 2:
 		profile.complete_quest(id)
 	profile.save_profile()
+	_cloud_save()
 	flow_quest = index
-	verified_quest = id
 	ui.verify_quest.text = QUEST_NAMES[index]
-	ui.verify_xp.text = "XP +%d  â†’  Level %d" % [50 + index * 25, profile.level]
-	ui.verify_status.text = "Preparing Cardano verificationâ€¦"
+	ui.verify_xp.text = "XP +%d  ->  Level %d" % [50 + index * 25, profile.level]
+	ui.verify_status.text = "Preparing Cardano verification..."
 	ui.verify_proof.text = ""
 	ui.verify_attest.text = ""
 	ui.open_proof.disabled = true
@@ -325,7 +392,7 @@ func _complete_quest(index: int) -> void:
 	_start_cardano_flow(index)
 
 # ---------------------------------------------------------------------------
-# Cardano flow (milestone -> proof tx -> attestation -> verification)
+# Cardano flow
 # ---------------------------------------------------------------------------
 func _start_cardano_flow(index: int) -> void:
 	if profile.address == "":
@@ -334,7 +401,7 @@ func _start_cardano_flow(index: int) -> void:
 		return
 	in_flow = true
 	flow_quest = index
-	_set_label(ui, "verify_status", "Submitting milestone proof to Cardano Preprodâ€¦", COLOR_WARN)
+	_set_label(ui, "verify_status", "Submitting milestone proof to Cardano Preprod...", COLOR_WARN)
 	cardano_service.complete_quest(QUEST_IDS[index], profile.address, _cb_proof_submit)
 
 func _cb_proof_submit(result: int, code: int, data) -> void:
@@ -347,7 +414,7 @@ func _cb_proof_submit(result: int, code: int, data) -> void:
 		return
 	proof_tx_hash = str(data.get("txHash", ""))
 	ui.verify_proof.text = "Proof tx: " + proof_tx_hash
-	_set_label(ui, "verify_status", "Waiting for on-chain confirmationâ€¦", COLOR_WARN)
+	_set_label(ui, "verify_status", "Waiting for on-chain confirmation...", COLOR_WARN)
 	_start_poll(proof_tx_hash, "proof")
 
 func _start_attestation() -> void:
@@ -360,7 +427,7 @@ func _start_attestation() -> void:
 		"tier": flow_quest + 1,
 		"progression": "quest_progress",
 	}
-	_set_label(ui, "verify_status", "Creating on-chain achievement attestationâ€¦", COLOR_WARN)
+	_set_label(ui, "verify_status", "Creating on-chain achievement attestation...", COLOR_WARN)
 	cardano_service.attest_prepare(payload, _cb_attest_prepare)
 
 func _cb_attest_prepare(result: int, code: int, data) -> void:
@@ -373,17 +440,17 @@ func _cb_attest_prepare(result: int, code: int, data) -> void:
 		return
 	pending_attest_hash = str(data.get("attestationHash", ""))
 	if cip30.connected:
-		_set_label(ui, "verify_status", "Waiting for your wallet signature (CIP-30)â€¦", COLOR_WARN)
+		_set_label(ui, "verify_status", "Waiting for your wallet signature (CIP-30)...", COLOR_WARN)
 		cip30.sign(pending_attest_hash, _cb_cip30_signed)
 	else:
 		_create_attestation({})
 
 func _cb_cip30_signed(sig_data) -> void:
 	if not cip30.apply_sign_result(sig_data):
-		_set_label(ui, "cip30_status", "Wallet signing failed: " + str(sig_data.get("error", "unknown") if sig_data is Dictionary else "bad response"), COLOR_ERR)
+		_set_label(ui, "cip30_status", "Wallet signing failed", COLOR_ERR)
 		ui.retry_btn.disabled = false
 		return
-	ui.cip30_status.text = "Signed by your wallet âœ“ (CIP-30)"
+	ui.cip30_status.text = "Signed by your wallet OK (CIP-30)"
 	ui.cip30_status.add_theme_color_override("font_color", COLOR_OK)
 	_create_attestation({ "playerSignature": cip30.signature, "playerKey": cip30.key, "playerAddressCip30": cip30.address })
 
@@ -411,10 +478,9 @@ func _cb_attest_create(result: int, code: int, data) -> void:
 		return
 	attest_tx_hash = str(data.get("txHash", ""))
 	ui.verify_attest.text = "Attestation tx: " + attest_tx_hash
-	_set_label(ui, "verify_status", "Waiting for attestation confirmationâ€¦", COLOR_WARN)
+	_set_label(ui, "verify_status", "Waiting for attestation confirmation...", COLOR_WARN)
 	_start_poll(attest_tx_hash, "attest")
 
-# ---- confirmation polling --------------------------------------------------
 func _start_poll(hash: String, phase: String) -> void:
 	poll_hash = hash
 	poll_phase = phase
@@ -430,7 +496,7 @@ func _start_poll(hash: String, phase: String) -> void:
 func _poll_tick() -> void:
 	poll_count += 1
 	if poll_count > 20:
-		_set_label(ui, "verify_status", "Confirmation timed out â€” Retry to continue.", COLOR_ERR)
+		_set_label(ui, "verify_status", "Confirmation timed out - Retry to continue.", COLOR_ERR)
 		ui.retry_btn.disabled = false
 		return
 	cardano_service.tx_status(poll_hash, _cb_poll)
@@ -450,12 +516,13 @@ func _on_verified() -> void:
 	if flow_quest == 2:
 		profile.complete_quest("quest_3")
 	profile.save_profile()
+	_cloud_save()
 	ui.open_proof.disabled = false
 	ui.open_attest.disabled = false
 	ui.cont_btn.disabled = false
-	_set_label(ui, "verify_status", "Achievement VERIFIED on Cardano âœ“", COLOR_OK)
+	_set_label(ui, "verify_status", "Achievement VERIFIED on Cardano OK", COLOR_OK)
 	if cip30.connected:
-		ui.cip30_status.text = "Player-signed attestation (CIP-30) verified âœ“"
+		ui.cip30_status.text = "Player-signed attestation (CIP-30) verified OK"
 
 func _continue_after_verify() -> void:
 	if flow_quest < 2:
@@ -470,14 +537,14 @@ func _connect_cip30() -> void:
 	if not cip30.is_available():
 		_set_label(ui, "cip30_status", "No CIP-30 wallet found in this browser. Attestation will be signed by the bridge.", COLOR_WARN)
 		return
-	_set_label(ui, "cip30_status", "Connecting walletâ€¦", COLOR_WARN)
+	_set_label(ui, "cip30_status", "Connecting wallet...", COLOR_WARN)
 	ui.cip30_btn.disabled = true
 	cip30.connect_wallet(_cb_cip30_connected)
 
 func _cb_cip30_connected(data) -> void:
 	ui.cip30_btn.disabled = false
 	if cip30.apply_connect_result(data):
-		ui.cip30_status.text = "Wallet connected: " + cip30.address.substr(0, 20) + "â€¦"
+		ui.cip30_status.text = "Wallet connected: " + cip30.address.substr(0, 20) + "..."
 		ui.cip30_status.add_theme_color_override("font_color", COLOR_OK)
 	else:
 		var msg := "wallet connect failed"
@@ -495,10 +562,9 @@ func _refresh_achievements() -> void:
 		var state := "Locked"
 		var color := Color("#64748b")
 		if ver:
-			state = "âœ“ Verified on Cardano"
+			state = "OK Verified on Cardano"
 			color = COLOR_OK
 		elif done:
 			state = "Completed (not yet verified)"
 			color = COLOR_WARN
-		ui.achievements_list.add_child(_label("%s   â€”   %s" % [QUEST_NAMES[i], state], 15, color))
-
+		ui.achievements_list.add_child(_label("%s   -   %s" % [QUEST_NAMES[i], state], 15, color))

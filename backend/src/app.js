@@ -11,8 +11,10 @@ import {
   getOnChainAnchor,
   prepareAttestation,
 } from './cip0170.js';
+import { savePlayer, loadPlayer, ensureSchema } from './storage.js';
 
 validateConfig();
+ensureSchema().catch((err) => console.error('[storage] schema init failed:', err.message));
 
 export const app = express();
 app.use(cors());
@@ -102,13 +104,36 @@ app.get('/api/tx/:hash', async (req, res) => {
 // ---------------------------------------------------------------------------
 // CIP-0170 — on-chain identity & attestation
 // ---------------------------------------------------------------------------
-app.post('/api/player/register', (req, res) => {
+app.post('/api/player/register', async (req, res) => {
   try {
     const { playerAddress, playerName } = req.body || {};
     const result = registerPlayer({ playerAddress, playerName });
     res.json(result);
   } catch (err) {
     res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+// Off-chain player progression (Postgres / Neon). On-chain evidence is separate.
+app.post('/api/player/save', async (req, res) => {
+  try {
+    const { address, data } = req.body || {};
+    if (!address || typeof address !== 'string' || address.length < 40) {
+      return res.status(400).json({ ok: false, error: 'a valid address is required' });
+    }
+    const result = await savePlayer(address, data || {});
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/player/:address', async (req, res) => {
+  try {
+    const data = await loadPlayer(req.params.address);
+    res.json({ ok: true, data });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

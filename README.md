@@ -11,8 +11,8 @@ off-chain.
 
 ## What the Game Is
 
-- A top-down dungeon quest game: collect **energy fragments**, activate
-  **terminals**, reach the **exit**.
+- A side-scrolling platformer: run & jump, collect **coins**, activate
+  **terminals**, reach the **exit sign**.
 - Complete 3 quests per run, earn **XP and levels** that persist on your device.
 - When you finish a quest milestone, the game submits a real **Cardano Preprod**
   transaction (proof + achievement attestation) and shows you the **transaction
@@ -24,10 +24,10 @@ This is an end-user game with Cardano integration — not a tutorial or SDK.
 
 ## Gameplay
 
-1. **Play** → enter the level.
-2. **Quest 1:** collect 5 energy fragments.
-3. **Quest 2:** activate 3 terminals.
-4. **Quest 3:** reach the exit.
+1. **Play** → jump into the level (←/→ move, Space/↑ jump, ↓ duck).
+2. **Quest 1:** collect 5 coins.
+3. **Quest 2:** activate 2 terminals.
+4. **Quest 3:** reach the exit sign.
 5. Each quest completion = an XP reward + a **milestone** that triggers the
    Cardano flow.
 6. **Achievements** screen shows each quest and whether it is **Verified on

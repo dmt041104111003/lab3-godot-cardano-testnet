@@ -38,6 +38,7 @@ export const config = {
   mnemonic,
   port: Number(process.env.PORT || 8787),
   blockfrostApiKey: process.env.BLOCKFROST_API_KEY || '',
+  databaseUrl: process.env.DATABASE_URL || '',
   explorerUrl: (txHash) => `${explorerBase}/${txHash}`,
 };
 

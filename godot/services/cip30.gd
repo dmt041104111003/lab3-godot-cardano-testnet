@@ -1,5 +1,5 @@
 extends Node
-## CIP-30 wallet connector (autoload) — browser-only, via JavaScriptBridge.
+## CIP-30 wallet connector (autoload) - browser-only, via JavaScriptBridge.
 ## Detects Eternl/Nami/Vespr/Gero/Flint and signs data with the player's wallet.
 
 var address := ""

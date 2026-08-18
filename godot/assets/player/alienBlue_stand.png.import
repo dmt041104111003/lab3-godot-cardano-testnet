@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c17yohkyx7dnv"
-path="res://.godot/imported/tile_0037.png-7e542faa30667f10c592e2e868da86d9.ctex"
+uid="uid://bcbqm10tj4msh"
+path="res://.godot/imported/alienBlue_stand.png-41fd5d8be84f15e63ee306e522528559.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/tiles/tile_0037.png"
-dest_files=["res://.godot/imported/tile_0037.png-7e542faa30667f10c592e2e868da86d9.ctex"]
+source_file="res://assets/player/alienBlue_stand.png"
+dest_files=["res://.godot/imported/alienBlue_stand.png-41fd5d8be84f15e63ee306e522528559.ctex"]
 
 [params]
 

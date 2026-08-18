@@ -53,3 +53,9 @@ func attest_verify(payload: Dictionary, cb: Callable) -> void:
 
 func tx_status(tx_hash: String, cb: Callable) -> void:
 	get_json("/api/tx/" + tx_hash, cb)
+
+func save_player(address: String, data: Dictionary, cb: Callable) -> void:
+	post("/api/player/save", { "address": address, "data": data }, cb)
+
+func load_player(address: String, cb: Callable) -> void:
+	get_json("/api/player/" + address, cb)

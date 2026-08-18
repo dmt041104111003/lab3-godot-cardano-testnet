@@ -1,4 +1,5 @@
 ﻿# LAB3 Godot x Cardano Testnet — Web Build
 
-This branch hosts the Godot Web export (live Preprod data + CIP-68 NFTs). Full source, docs and evidence live on the master branch: https://github.com/dmt041104111003/lab3-godot-cardano-testnet
+Live Preprod data · CIP-68 NFT achievements · CIP-0170 identity & attestation.
+Full source, docs and evidence: https://github.com/dmt041104111003/lab3-godot-cardano-testnet
 

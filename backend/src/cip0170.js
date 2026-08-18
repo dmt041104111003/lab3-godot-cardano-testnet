@@ -29,6 +29,17 @@ function bytesFromHex(hex) {
   return Uint8Array.from(Buffer.from(hex, 'hex'));
 }
 
+function chunkHex(str, size = 54) {
+  const out = [];
+  for (let i = 0; i < str.length; i += size) out.push(str.slice(i, i + size));
+  return out;
+}
+
+function joinChunks(value) {
+  if (Array.isArray(value)) return value.join('');
+  return value || '';
+}
+
 function bytesFromUtf8(str) {
   return new TextEncoder().encode(str);
 }
@@ -83,7 +94,6 @@ function buildAttestation({ issuer, subject, playerName, achievement, event, que
     id: `did:cardano:${subject}#${achievement}-v${version}`,
     type: ['VerifiableCredential', 'GameAchievementAttestation'],
     issuer: issuer.aid,
-    issuanceDate: new Date().toISOString(),
     version,
     status,
     credentialSubject: {
@@ -140,7 +150,7 @@ async function anchorOnChain(wallet, provider, anchor, attempts = 4) {
   throw lastErr;
 }
 
-async function attest({ playerAddress, playerName, achievement, event, questId, tier, progression, update }) {
+async function attest({ playerAddress, playerName, achievement, event, questId, tier, progression, update, playerSignature, playerKey, playerAddressCip30 }) {
   const subject = playerAddress;
   if (!subject || !/^addr_test1/.test(subject)) {
     throw new Error('attest: a valid testnet address (addr_test1...) is required');
@@ -169,6 +179,21 @@ async function attest({ playerAddress, playerName, achievement, event, questId, 
   // Sign the canonical attestation hash with the issuer key (CIP-8 Ed25519).
   const { signature, key: sigKey } = await issuer.wallet.signData(issuer.address, attestationHash);
 
+  // Optional CIP-30 player authorization: the player signs the SAME hash with
+  // their own wallet. This is validated before anchoring (reject invalid).
+  let playerAuth = null;
+  if (playerSignature && playerKey) {
+    const signingAddress = playerAddressCip30 || playerAddress;
+    let valid = false;
+    try {
+      valid = await checkSignature(attestationHash, { key: playerKey, signature: playerSignature }, signingAddress);
+    } catch (err) {
+      throw new Error(`attest: invalid player signature (${err.message})`);
+    }
+    if (!valid) throw new Error('attest: player signature does not verify');
+    playerAuth = { playerSignature, playerKey, playerAddress: signingAddress };
+  }
+
   const anchor = {
     attestationHash,
     issuer: issuer.aid,
@@ -185,6 +210,12 @@ async function attest({ playerAddress, playerName, achievement, event, questId, 
     timestamp: new Date().toISOString(),
     tag: 'LAB3_CIP0170',
   };
+  if (playerAuth) {
+    anchor.player_addr_a = playerAuth.playerAddress.slice(0, 54);
+    anchor.player_addr_b = playerAuth.playerAddress.slice(54);
+    anchor.player_key = chunkHex(playerAuth.playerKey);
+    anchor.player_sig = chunkHex(playerAuth.playerSignature);
+  }
 
   const txHash = await anchorOnChain(issuer.wallet, provider, anchor);
 
@@ -198,6 +229,7 @@ async function attest({ playerAddress, playerName, achievement, event, questId, 
     signature,
     key: sigKey,
     anchor,
+    playerAuth,
   };
   attestations.set(key, record);
 
@@ -214,6 +246,9 @@ async function attest({ playerAddress, playerName, achievement, event, questId, 
     attestation: vc,
     signature,
     verificationKey: sigKey,
+    playerSignature: playerAuth ? playerAuth.playerSignature : null,
+    playerKey: playerAuth ? playerAuth.playerKey : null,
+    playerAddress: playerAuth ? playerAuth.playerAddress : null,
     explorerUrl: config.explorerUrl(txHash),
   };
 }
@@ -224,6 +259,49 @@ export function createAttestation(params) {
 
 export function updateAttestation(params) {
   return attest({ ...params, update: true });
+}
+
+/**
+ * Phase 1 of CIP-30 signing: build the attestation and return the hash the
+ * player must sign with their own wallet (CIP-30 signData). Then call
+ * createAttestation with the resulting playerSignature + playerKey.
+ */
+export async function prepareAttestation({ playerAddress, playerName, achievement, event, questId, tier, progression, update }) {
+  const subject = playerAddress;
+  if (!subject || !/^addr_test1/.test(subject)) {
+    throw new Error('prepareAttestation: a valid testnet address (addr_test1...) is required');
+  }
+  const issuer = await getIssuer();
+  const key = `${subject}|${achievement}`;
+  const prev = attestations.get(key);
+  const version = update && prev ? prev.version + 1 : 1;
+  const status = version === 1 ? 'created' : 'updated';
+
+  const { vc, canonical, attestationHash } = buildAttestation({
+    issuer,
+    subject,
+    playerName,
+    achievement,
+    event,
+    questId,
+    tier,
+    progression,
+    version,
+    status,
+  });
+
+  return {
+    ok: true,
+    standard: 'CIP-0170',
+    attestation: vc,
+    canonical,
+    attestationHash,
+    issuerAid: issuer.aid,
+    issuerAddr: issuer.address,
+    version,
+    status,
+    note: 'Sign attestationHash with your wallet (CIP-30 signData) then call /api/attestation/create with playerSignature + playerKey.',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +320,7 @@ export async function getOnChainAnchor(txHash) {
   return bf ? bf.json_metadata : null;
 }
 
-export async function verifyAttestation({ txHash, attestation, signature, key, issuerAddr }) {
+export async function verifyAttestation({ txHash, attestation, signature, key, issuerAddr, playerSignature, playerKey, playerAddr }) {
   if (!txHash) throw new Error('verifyAttestation: txHash is required');
   const anchor = await getOnChainAnchor(txHash);
   if (!anchor) {
@@ -274,16 +352,42 @@ export async function verifyAttestation({ txHash, attestation, signature, key, i
     }
   }
 
-  const verified = hashMatch && signatureValid;
+  // 3. If the player authorized with their own wallet (CIP-30), verify that too.
+  let playerValid = null; // null = not provided; true/false = provided and checked
+  let playerError = null;
+  const anchorPlayerAddr = anchor.player_addr_a && anchor.player_addr_b
+    ? anchor.player_addr_a + anchor.player_addr_b
+    : null;
+  const sigForPlayer = playerSignature || joinChunks(anchor.player_sig);
+  const keyForPlayer = playerKey || joinChunks(anchor.player_key);
+  if (sigForPlayer && keyForPlayer) {
+    try {
+      playerValid = await checkSignature(
+        anchor.attestationHash,
+        { key: keyForPlayer, signature: sigForPlayer },
+        playerAddr || anchorPlayerAddr,
+      );
+    } catch (err) {
+      playerError = err.message;
+    }
+  }
+
+  const verified = hashMatch && signatureValid && playerValid !== false;
+  const parts = [
+    `hash_match=${hashMatch}`,
+    `issuer_signature=${signatureValid}${signatureError ? ` (${signatureError})` : ''}`,
+  ];
+  if (playerValid !== null) parts.push(`player_signature=${playerValid}${playerError ? ` (${playerError})` : ''}`);
   return {
     verified,
     txHash,
     reason: verified
-      ? 'on-chain anchor matches and issuer signature is valid'
-      : `hash_match=${hashMatch} signature_valid=${signatureValid}${signatureError ? ` (${signatureError})` : ''}`,
+      ? 'on-chain anchor matches, issuer signature valid, player authorization valid'
+      : parts.join(' '),
     anchor,
     hashMatch,
     signatureValid,
+    playerValid,
   };
 }
 

@@ -52,7 +52,12 @@ var polling := false
 var submitting := false
 var minting := false
 var attesting := false
+var attest_phase := "create"
+var cip30 := {}  # { address, signature, key } when a CIP-30 wallet is connected
+var prepared_attest := {}  # attestationHash from prepare, for player signing
 var last_attestation := {}  # attestation + signature from create/update, for verify
+var cip30_poll_timer: Timer
+var cip30_poll_remaining := 0
 
 var http_tip: HTTPRequest
 var http_addr: HTTPRequest
@@ -75,6 +80,16 @@ func _ready() -> void:
 	_log("LAB3 Godot × Cardano Testnet — live build", COLOR_INFO)
 	_log("Network: %s | reads via %s" % [network_name, read_mode], COLOR_INFO)
 	_log("Bridge: %s" % bridge_url, COLOR_INFO)
+	# A completed quest mini-game sets the milestone; enable proof actions.
+	if quest_state.milestone_reached:
+		quest_completed = true
+		_set_ui_status("quest_status", "Completed ✓", COLOR_OK)
+		ui.submit_btn.disabled = false
+		ui.nft_btn.disabled = false
+		ui.attest_btn.disabled = false
+		_set_ui_status("submit_status", "Ready to submit", COLOR_INFO)
+		_set_ui_status("nft_status", "Ready to mint", COLOR_INFO)
+		_log("Quest '%s' milestone reached (playable level completed)." % quest_state.quest_id, COLOR_OK)
 	_refresh_data()
 
 func _load_config() -> void:
@@ -204,11 +219,11 @@ func _build_ui() -> void:
 	vbox.add_child(_section("QUEST"))
 	var quest_row := _row()
 	var quest_btn := Button.new()
-	quest_btn.text = "Complete Quest  (%s)" % quest_id
+	quest_btn.text = "Play Quest  (%s)" % quest_id
 	quest_btn.pressed.connect(_on_quest_pressed)
 	ui.quest_btn = quest_btn
 	quest_row.add_child(quest_btn)
-	ui.quest_status = _label("Not started", 14, COLOR_WARN)
+	ui.quest_status = _label("Not played", 14, COLOR_WARN)
 	quest_row.add_child(ui.quest_status)
 	vbox.add_child(quest_row)
 
@@ -266,6 +281,11 @@ func _build_ui() -> void:
 	reg_btn.pressed.connect(_on_register_pressed)
 	ui.reg_btn = reg_btn
 	cip170_row.add_child(reg_btn)
+	var cip30_btn := Button.new()
+	cip30_btn.text = "Connect Wallet (CIP-30)"
+	cip30_btn.pressed.connect(_on_connect_wallet_pressed)
+	ui.cip30_btn = cip30_btn
+	cip170_row.add_child(cip30_btn)
 	ui.reg_status = _label("Link wallet to a player profile", 13, COLOR_WARN)
 	cip170_row.add_child(ui.reg_status)
 	vbox.add_child(cip170_row)
@@ -445,13 +465,10 @@ func _on_addr_data(balance: int) -> void:
 # Quest + proof submission
 # ---------------------------------------------------------------------------
 func _on_quest_pressed() -> void:
-	quest_completed = true
-	_set_ui_status("quest_status", "Completed ✓", COLOR_OK)
-	_log("Quest '%s' completed." % quest_id, COLOR_OK)
-	ui.submit_btn.disabled = false
-	ui.nft_btn.disabled = false
-	_set_ui_status("submit_status", "Ready to submit", COLOR_INFO)
-	_set_ui_status("nft_status", "Ready to mint", COLOR_INFO)
+	quest_state.quest_id = quest_id
+	quest_state.reset()
+	_log("Starting quest level… collect %d gems to reach the milestone." % 5, COLOR_INFO)
+	get_tree().change_scene_to_file("res://scenes/game.tscn")
 
 func _on_submit_pressed() -> void:
 	if submitting:
@@ -560,6 +577,94 @@ func _on_mint_done(result: int, response_code: int, _headers: PackedStringArray,
 # ---------------------------------------------------------------------------
 # CIP-0170 — identity & attestation
 # ---------------------------------------------------------------------------
+func _js_eval(code: String) -> String:
+	if OS.has_feature("web"):
+		return JavaScriptBridge.eval(code)
+	return ""
+
+func _on_connect_wallet_pressed() -> void:
+	if not OS.has_feature("web"):
+		_set_ui_status("reg_status", "CIP-30 wallet connect works in the browser build", COLOR_WARN)
+		return
+	ui.cip30_btn.disabled = true
+	_set_ui_status("reg_status", "connecting CIP-30 wallet…", COLOR_WARN)
+	_js_eval("""
+	(function(){
+	  var w = window.cardano || {};
+	  var name = ['eternl','vespr','nami','gero','flint'].find(function(n){ return w[n]; });
+	  if(!name){ window.__cip30conn = JSON.stringify({error:'no CIP-30 wallet found'}); return; }
+	  w[name].enable().then(function(api){
+	    return api.getUsedAddresses();
+	  }).then(function(addrs){
+	    window.__cip30conn = JSON.stringify({address: addrs[0] || ''});
+	  }).catch(function(e){ window.__cip30conn = JSON.stringify({error: String(e)}); });
+	})();
+	""")
+	_start_cip30_poll("__cip30conn", "_on_cip30_connect_done")
+
+func _run_js_sign(hash: String) -> void:
+	var addr = str(cip30.get("address", ""))
+	_js_eval("""
+	(function(){
+	  var w = window.cardano || {};
+	  var name = ['eternl','vespr','nami','gero','flint'].find(function(n){ return w[n]; });
+	  if(!name){ window.__cip30sig = JSON.stringify({error:'no CIP-30 wallet found'}); return; }
+	  w[name].enable().then(function(api){ return api.signData('%s', '%s'); })
+	    .then(function(s){ window.__cip30sig = JSON.stringify({signature:s.signature, key:s.key}); })
+	    .catch(function(e){ window.__cip30sig = JSON.stringify({error: String(e)}); });
+	})();
+	""" % [addr, hash])
+	_start_cip30_poll("__cip30sig", "_on_cip30_sign_done")
+
+var cip30_poll_var := ""
+var cip30_poll_callback := ""
+
+func _start_cip30_poll(var_name: String, callback: String) -> void:
+	cip30_poll_var = var_name
+	cip30_poll_callback = callback
+	cip30_poll_remaining = 40
+	if cip30_poll_timer == null:
+		cip30_poll_timer = Timer.new()
+		cip30_poll_timer.wait_time = 0.5
+		cip30_poll_timer.timeout.connect(_on_cip30_poll_tick)
+		add_child(cip30_poll_timer)
+	cip30_poll_timer.start()
+
+func _on_cip30_poll_tick() -> void:
+	var raw := _js_eval("window.%s" % cip30_poll_var)
+	if raw != "" and raw != "null":
+		cip30_poll_timer.stop()
+		_js_eval("window.%s = null" % cip30_poll_var)
+		call(cip30_poll_callback, raw)
+		return
+	cip30_poll_remaining -= 1
+	if cip30_poll_remaining <= 0:
+		cip30_poll_timer.stop()
+		_set_ui_status("reg_status", "wallet connect timeout", COLOR_ERR)
+		ui.cip30_btn.disabled = false
+
+func _on_cip30_connect_done(raw: String) -> void:
+	ui.cip30_btn.disabled = false
+	var data = JSON.parse_string(raw)
+	if data == null or data.has("error") or data.get("address", "") == "":
+		_set_ui_status("reg_status", "wallet connect failed: " + str(data.get("error", "unknown") if data != null else "parse error"), COLOR_ERR)
+		return
+	cip30["address"] = data.get("address", "")
+	_set_ui_status("reg_status", "CIP-30 wallet connected: " + str(cip30["address"]).substr(0, 18) + "…", COLOR_OK)
+	_log("CIP-30 wallet connected: %s" % cip30["address"], COLOR_OK)
+
+func _on_cip30_sign_done(raw: String) -> void:
+	var data = JSON.parse_string(raw)
+	if data == null or data.has("error") or data.get("signature", "") == "":
+		_set_ui_status("cip_status", "player signing failed: " + str(data.get("error", "unknown") if data != null else "parse error"), COLOR_ERR)
+		attesting = false
+		ui.attest_btn.disabled = false
+		return
+	cip30["signature"] = data.get("signature", "")
+	cip30["key"] = data.get("key", "")
+	_log("Player signed the attestation with their wallet (CIP-30).", COLOR_OK)
+	_finish_attest_create({"signature": cip30["signature"], "key": cip30["key"]})
+
 func _on_register_pressed() -> void:
 	var addr := _address()
 	if addr == "":
@@ -595,8 +700,10 @@ func _on_attest_pressed() -> void:
 		return
 	attesting = true
 	ui.attest_btn.disabled = true
-	_set_ui_status("cip_status", "creating CIP-0170 attestation…", COLOR_WARN)
-	_log("Creating CIP-0170 attestation for %s…" % quest_id, COLOR_INFO)
+	_set_ui_status("cip_status", "preparing CIP-0170 attestation…", COLOR_WARN)
+	if cip30.has("address") and cip30.get("address", "") != "":
+		_log("CIP-30 wallet connected — player will authorize the attestation.", COLOR_INFO)
+	attest_phase = "prepare"
 	var payload := JSON.stringify({
 		"playerAddress": addr,
 		"playerName": "Player One",
@@ -607,35 +714,69 @@ func _on_attest_pressed() -> void:
 		"progression": "achievement",
 	})
 	var headers := ["Content-Type: application/json"]
-	http_attest.request(bridge_url + "/api/attestation/create", headers, HTTPClient.METHOD_POST, payload)
+	http_attest.request(bridge_url + "/api/attestation/prepare", headers, HTTPClient.METHOD_POST, payload)
 
 func _on_attest_done(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
-	attesting = false
 	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		attesting = false
 		_set_ui_status("cip_status", "attestation failed", COLOR_ERR)
 		ui.attest_btn.disabled = false
 		return
 	var data = JSON.parse_string(body.get_string_from_utf8())
 	if data == null or not data.get("ok", false):
+		attesting = false
 		_set_ui_status("cip_status", "attestation failed", COLOR_ERR)
 		ui.attest_btn.disabled = false
 		return
+	if attest_phase == "prepare":
+		prepared_attest = data
+		_set_ui_status("cip_status", "attestation prepared — waiting for player signature…", COLOR_WARN)
+		if cip30.has("address") and cip30.get("address", "") != "":
+			_run_js_sign(str(data.get("attestationHash", "")))
+		else:
+			_finish_attest_create({})
+		return
+	# create/update response
+	attesting = false
 	last_attestation = data
 	tx_hash = str(data.get("txHash", ""))
 	ui.cip_hash.text = "Attestation hash: " + str(data.get("attestationHash", "")).substr(0, 24) + "…"
 	ui.cip_hash.add_theme_color_override("font_color", COLOR_OK)
 	ui.cip_aid.text = "Issuer AID: " + str(data.get("issuerAid", ""))
 	ui.cip_aid.add_theme_color_override("font_color", COLOR_INFO)
-	_set_ui_status("cip_status", "Attestation %s (v%s) ✓ — awaiting confirm" % [data.get("status", "?"), data.get("version", "?")], COLOR_OK)
+	var signed_by := "bridge"
+	if data.get("playerSignature", "") != "":
+		signed_by = "player wallet (CIP-30) + bridge"
+	_set_ui_status("cip_status", "Attestation %s (v%s) ✓ signed by %s — awaiting confirm" % [data.get("status", "?"), data.get("version", "?"), signed_by], COLOR_OK)
 	ui.tx_hash_label.text = "Transaction hash: " + tx_hash
 	ui.tx_hash_label.add_theme_color_override("font_color", COLOR_OK)
 	ui.explorer_btn.disabled = false
 	ui.verify_btn.disabled = false
-	_log("CIP-0170 attestation submitted. Tx: %s" % tx_hash, COLOR_OK)
+	_log("CIP-0170 attestation submitted (signed by %s). Tx: %s" % [signed_by, tx_hash], COLOR_OK)
 	_set_ui_status("submit_status", "submitted — awaiting confirmation", COLOR_WARN)
 	poll_count = 0
 	polling = true
 	poll_timer.start(POLL_INTERVAL_SECONDS)
+
+func _finish_attest_create(player_sig: Dictionary) -> void:
+	var addr := _address()
+	attest_phase = "create"
+	_set_ui_status("cip_status", "creating CIP-0170 attestation…", COLOR_WARN)
+	var payload := {
+		"playerAddress": addr,
+		"playerName": "Player One",
+		"achievement": quest_id,
+		"event": "quest_completed",
+		"questId": quest_id,
+		"tier": 1,
+		"progression": "achievement",
+	}
+	if not player_sig.is_empty():
+		payload["playerSignature"] = player_sig.get("signature", "")
+		payload["playerKey"] = player_sig.get("key", "")
+		payload["playerAddressCip30"] = cip30.get("address", addr)
+	var headers := ["Content-Type: application/json"]
+	http_attest.request(bridge_url + "/api/attestation/create", headers, HTTPClient.METHOD_POST, JSON.stringify(payload))
 
 func _on_verify_pressed() -> void:
 	if last_attestation.is_empty():

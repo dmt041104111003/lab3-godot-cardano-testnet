@@ -16,4 +16,5 @@ godot/*.import
 Thumbs.db
 .idea/
 .vscode/
-*.loggodot/build/
+*.log
+godot/build/

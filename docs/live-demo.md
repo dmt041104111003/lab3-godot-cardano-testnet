@@ -17,20 +17,22 @@ The best way for anyone (curators, developers) to verify this project is the
 
 - [x] Godot web build committed to the **`gh-pages` branch** (root).
 - [x] `master` branch contains the full source + docs + evidence.
+- [x] **Bridge deployed to Vercel (production):**
+      `https://lab3-godot-cardano-bridge.vercel.app` — env vars (NETWORK=preprod,
+      PROVIDER=blockfrost, BLOCKFROST_API_KEY, MNEMONIC) configured. Submissions
+      from the web demo are real, signed on Preprod, and confirmed on-chain.
 - [ ] **One manual step:** enable GitHub Pages on the repo:
       `Settings → Pages → Deploy from a branch → branch: gh-pages → / (root) → Save`.
       URL will be: `https://dmt041104111003.github.io/lab3-godot-cardano-testnet/`
-- [ ] *(optional)* Deploy the bridge so the browser demo can also submit
-      transactions (see Step 2 below). Without it, the web demo shows live
-      reads; submission needs the desktop app or a hosted bridge.
 
 ## What the browser build can do
 
 The web build reads live Preprod data directly from **Blockfrost** (CORS-enabled,
-using a public Preprod demo key embedded in the build) — no hosted backend needed
-for balance/network/tx-status. Submissions are sent to the bridge URL; on the
-static demo that shows a clear "bridge unreachable" message until a hosted bridge
-is deployed.
+using a public Preprod demo key embedded in the build). Submissions go to the
+hosted bridge above — so **the live demo is fully functional end-to-end**, no
+local setup needed for visitors.
+
+Quick check: `curl https://lab3-godot-cardano-bridge.vercel.app/health`
 
 ## How the web build talks to Cardano
 

@@ -39,7 +39,29 @@ this prototype. No transaction hash on this page is fabricated.
 | Block | `5066209` |
 | Metadata (label 674) | confirmed on-chain |
 
-> Two independent runs confirm the flow **repeats without failure**.
+### TX #3 — `quest_id: demo_003` (desktop bridge, repeat run)
+
+| Field | Value |
+| ----- | ----- |
+| Transaction hash | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` |
+| Explorer URL | https://preprod.cardanoscan.io/transaction/7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120 |
+| Metadata (label 674) | confirmed on-chain |
+
+### TX #4 — `quest_id: demo_hosted_001` (HOSTED Vercel bridge, repeat run)
+
+| Field | Value |
+| ----- | ----- |
+| Transaction hash | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` |
+| Explorer URL | https://preprod.cardanoscan.io/transaction/73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4 |
+| Block | `5068791` (verified via Blockfrost) |
+| Fee | `179405` lovelace |
+| Metadata (label 674) | confirmed on-chain (tag `LAB3_GODOT_CARDANO_TRL5_DEMO`) |
+
+> TX #4 proves the **hosted bridge** (`https://lab3-godot-cardano-bridge.vercel.app`)
+> signs and submits real Preprod transactions — the same endpoint the browser
+> live demo uses.
+
+> Four independent runs confirm the flow **repeats without failure**.
 
 ## Metadata verified on-chain (TX #1)
 

@@ -93,9 +93,16 @@ address exactly.
 3. `cd backend && npm install && npm start` (bridge on `http://127.0.0.1:8787`).
 4. Open the Godot project (`godot/project.godot`), paste a testnet address in the
    **Wallet address** field, click **Refresh Cardano Data**.
-5. Click **Complete Quest**, then **Submit Testnet Proof**.
-6. Wait for the tx hash to appear and for **CONFIRMED (block height …)**.
-7. Click **Open Explorer** and verify the transaction + metadata on-chain.
+5. Click **Complete Quest** (default quest id `quest_001`), then **Submit Testnet
+   Proof**. A real Preprod transaction is built, signed, and submitted; the app
+   polls until it is confirmed and shows the block height.
+6. Click **Open Explorer** and verify the transaction + metadata (label 674) on-chain.
+
+> New transactions produced by the current code use tag `LAB3_GODOT_CARDANO_TESTNET`
+> and quest id `quest_001`. The TX #1–#4 records above were produced earlier with
+> tag `LAB3_GODOT_CARDANO_TRL5_DEMO` and quest ids `demo_001`–`demo_003`/
+> `demo_hosted_001` — they are documented verbatim because that is exactly what
+> is written on-chain.
 
 ## Verify with a shell one-liner (read-only, no key)
 

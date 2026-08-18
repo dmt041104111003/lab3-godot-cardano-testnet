@@ -72,13 +72,13 @@ signing key somewhere. The solution is a **bridge service** that:
 
 ```json
 {
-  "project": "LAB3 Godot Cardano Testnet Demo",
+  "project": "LAB3 Godot Cardano Testnet",
   "event": "quest_completed",
-  "quest_id": "demo_001",
+  "quest_id": "quest_001",
   "network": "preprod",
   "player_addr_a": "<first 54 chars of player address>",
   "player_addr_b": "<remaining chars of player address>",
-  "tag": "LAB3_GODOT_CARDANO_TRL5_DEMO"
+  "tag": "LAB3_GODOT_CARDANO_TESTNET"
 }
 ```
 

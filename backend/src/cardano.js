@@ -84,15 +84,15 @@ export async function submitProof({ questId, playerAddress }) {
 
   const addr = playerAddress || '';
   const metadata = {
-    project: 'LAB3 Godot Cardano Testnet Demo',
+    project: 'LAB3 Godot Cardano Testnet',
     event: 'quest_completed',
-    quest_id: questId || 'demo_001',
+    quest_id: questId || 'quest_001',
     network: config.network,
     // Cardano metadata strings are capped at 64 bytes, so full addresses are
     // split across two fields (concatenate a+b to recover the full address).
     player_addr_a: addr.slice(0, 54),
     player_addr_b: addr.slice(54, 108),
-    tag: 'LAB3_GODOT_CARDANO_TRL5_DEMO',
+    tag: 'LAB3_GODOT_CARDANO_TESTNET',
   };
 
   const { signedTxHex } = await buildAndSignProofTx(metadata);

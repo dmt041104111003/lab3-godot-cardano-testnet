@@ -1,5 +1,5 @@
 extends Control
-## LAB3 Godot x Cardano Testnet Demo
+## LAB3 Godot × Cardano Testnet
 ##
 ## A Godot 4 application that:
 ##   1. Reads LIVE Cardano testnet (Preprod) data from public APIs.
@@ -26,7 +26,7 @@ const BRIDGE_URL_HOSTED := "https://lab3-godot-cardano-bridge.vercel.app"  # web
 const KOIOS_URL_DEFAULT := "https://preprod.koios.rest/api/v1"
 const NETWORK_DEFAULT := "preprod"
 const EXPLORER_DEFAULT := "https://preprod.cardanoscan.io/transaction"
-const QUEST_ID_DEFAULT := "demo_001"
+const QUEST_ID_DEFAULT := "quest_001"
 
 const POLL_INTERVAL_SECONDS := 3.0
 const MAX_POLLS := 20
@@ -64,7 +64,7 @@ var ui := {}
 func _ready() -> void:
 	_load_config()
 	_build_ui()
-	_log("LAB3 Godot x Cardano Testnet Demo — live build", COLOR_INFO)
+	_log("LAB3 Godot × Cardano Testnet — live build", COLOR_INFO)
 	_log("Network: %s | reads via %s" % [network_name, read_mode], COLOR_INFO)
 	_log("Bridge: %s" % bridge_url, COLOR_INFO)
 	_refresh_data()
@@ -102,11 +102,43 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 10)
 	root.add_child(vbox)
 
-	var title := _label("LAB3 Godot × Cardano Testnet Demo", 26, COLOR_TITLE)
+	var title := _label("LAB3 Godot × Cardano Testnet", 26, COLOR_TITLE)
 	vbox.add_child(title)
 
-	var subtitle := _label("Live Cardano Preprod data + real testnet transactions", 13, Color("#94a3b8"))
+	var subtitle := _label("Live Cardano Preprod data + real on-chain transactions", 13, Color("#94a3b8"))
 	vbox.add_child(subtitle)
+
+	vbox.add_child(_hr())
+
+	# ---- About / description ----
+	vbox.add_child(_section("ABOUT"))
+	var about := RichTextLabel.new()
+	about.bbcode_enabled = true
+	about.fit_content = true
+	about.custom_minimum_size.y = 78
+	about.append_text(
+		"[color=#cbd5e1]This is a functional Godot 4 application interacting with the " +
+		"[b][color=#4ade80]Cardano Preprod testnet[/color][/b].\n" +
+		"It retrieves live on-chain data, completes a gameplay quest, submits a [b]real[/b] " +
+		"testnet transaction carrying metadata (label 674), and verifies confirmation on-chain.\n" +
+		"All values are fetched live — nothing is simulated.[/color]"
+	)
+	vbox.add_child(about)
+
+	# ---- Architecture ----
+	vbox.add_child(_section("ARCHITECTURE"))
+	var arch := RichTextLabel.new()
+	arch.bbcode_enabled = true
+	arch.fit_content = true
+	arch.custom_minimum_size.y = 96
+	arch.append_text(
+		"[color=#94a3b8]Godot (browser)[/color] [color=#22c1a6]⟶ Blockfrost/bridge[/color] [color=#94a3b8]⟶ Cardano Preprod\n" +
+		"[color=#94a3b8]  reads   tip · balance · tx status\n" +
+		"[color=#94a3b8]Godot[/color] [color=#22c1a6]⟶ bridge (Node + Mesh SDK)[/color] [color=#94a3b8]⟶ build · sign · submit[/color]\n" +
+		"[color=#94a3b8]Desktop reads Koios · Web reads hosted bridge\n" +
+		"[color=#94a3b8]Browser: https://lab3-godot-cardano-bridge.vercel.app[/color]"
+	)
+	vbox.add_child(arch)
 
 	vbox.add_child(_hr())
 
@@ -205,7 +237,7 @@ func _build_ui() -> void:
 	ui.log = RichTextLabel.new()
 	ui.log.bbcode_enabled = true
 	ui.log.scroll_active = true
-	ui.log.custom_minimum_size.y = 150
+	ui.log.custom_minimum_size.y = 130
 	ui.log.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(ui.log)
 

@@ -1,9 +1,9 @@
-# LAB3 Godot × Cardano Testnet Demo
+# LAB3 Godot × Cardano Testnet
 
 A minimal but **real** Godot 4 application that connects to the **Cardano Preprod
 testnet**, reads live on-chain data, lets a player complete a quest, and submits a
 **real testnet transaction** carrying verifiable metadata — then shows the
-confirmed transaction hash inside the game.
+confirmed transaction hash inside the app.
 
 This is the **validated Godot × Cardano product baseline** that a future CIP-0170
 integration will build on. It is **not** the CIP-0170 integration itself.
@@ -26,17 +26,20 @@ integration will build on. It is **not** the CIP-0170 integration itself.
 
 ## Real on-chain evidence (Preprod, 2026-08-17)
 
-Two independent testnet transactions were submitted and confirmed from this
+Four independent testnet transactions were submitted and confirmed from this
 workflow. No hashes on this page are fabricated.
 
-| # | Transaction hash | Explorer |
-| - | ---------------- | -------- |
-| 1 | `30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162` | https://preprod.cardanoscan.io/transaction/30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162 |
-| 2 | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` | https://preprod.cardanoscan.io/transaction/4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501 |
+| # | Transaction hash | Origin | Explorer |
+| - | ---------------- | ------ | -------- |
+| 1 | `30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162` | desktop bridge | https://preprod.cardanoscan.io/transaction/30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162 |
+| 2 | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` | desktop bridge | https://preprod.cardanoscan.io/transaction/4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501 |
+| 3 | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` | desktop bridge | https://preprod.cardanoscan.io/transaction/7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120 |
+| 4 | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` | hosted Vercel bridge | https://preprod.cardanoscan.io/transaction/73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4 |
 
-Both transactions carry metadata under **label 674** with tag
-`LAB3_GODOT_CARDANO_TRL5_DEMO` (verified on-chain via Blockfrost — see
-[docs/testnet-validation.md](docs/testnet-validation.md)).
+> All four carry metadata under **label 674** (verified on-chain via Blockfrost —
+> see [docs/testnet-validation.md](docs/testnet-validation.md)). TX #4 was signed
+> and submitted by the **hosted bridge** — the same endpoint the browser build
+> uses.
 
 ## Verify it yourself — live, right now
 
@@ -47,7 +50,7 @@ Both transactions carry metadata under **label 674** with tag
 2. **Hosted bridge** — `https://lab3-godot-cardano-bridge.vercel.app/health`
    (live on Vercel; `/api/tip`, `/api/address_info`, `/api/quest/complete`).
 3. **On-chain proof** — the real Preprod transactions below, openable in any
-   Cardano explorer (metadata label 674, tag `LAB3_GODOT_CARDANO_TRL5_DEMO`).
+   Cardano explorer (metadata label 674).
 
 > Every number in the app is fetched live from Cardano Preprod — nothing is
 > simulated. The web build + explorer links are the primary proof.
@@ -206,7 +209,7 @@ Check it: `curl http://127.0.0.1:8787/health`
 | `LAB3_KOIOS_URL` | `https://preprod.koios.rest/api/v1` | Godot read API (OS env override) |
 | `LAB3_NETWORK` | `preprod` | Godot display network name |
 | `LAB3_EXPLORER` | `https://preprod.cardanoscan.io/transaction` | Explorer base URL |
-| `LAB3_QUEST_ID` | `demo_001` | Quest id written into metadata |
+| `LAB3_QUEST_ID` | `quest_001` | Quest id written into metadata |
 
 Godot reads its overrides from **OS environment variables** (set them before
 launching Godot) — `.env` is consumed by the bridge only.
@@ -219,7 +222,7 @@ launching Godot) — `.env` is consumed by the bridge only.
 2. Godot app running, a funded testnet address pasted, balance visible.
 3. **Complete Quest** → **Submit Testnet Proof**.
 4. Godot calls `POST http://127.0.0.1:8787/api/quest/complete` with
-   `{"questId":"demo_001","playerAddress":"addr_test1…"}`.
+   `{"questId":"quest_001","playerAddress":"addr_test1…"}`.
 5. The bridge builds a tx with metadata label 674, signs it with the funded
    testnet wallet, and submits it to Preprod via Blockfrost/Koios.
 6. The bridge returns the **tx hash**; Godot polls `POST /tx_info` (Koios) until

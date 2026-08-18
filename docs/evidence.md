@@ -65,7 +65,7 @@ Full details (block heights, fees, inputs/outputs, metadata) are in
 Godot launch
   → queries Cardano (GET /api/v1/tip, POST /api/v1/address_info)      [live data]
   → user pastes testnet address, balance shown in tADA                [live data]
-  → Complete Quest (demo_001 / demo_002)                              [in-app]
+  → Complete Quest (quest_001)                                       [in-app]
   → Submit Testnet Proof → POST bridge /api/quest/complete            [sign + submit]
   → receive tx hash in Godot                                          [real hash]
   → poll POST /api/v1/tx_info until block height appears              [live chain]

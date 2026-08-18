@@ -90,11 +90,14 @@ State separation:
 | Path | Role |
 | ---- | ---- |
 | `godot/project.godot` | Godot 4 project (GL Compatibility renderer). |
-| `godot/export_presets.cfg` | Web (HTML5) export preset. |
-| `godot/scenes/main.tscn` | Main scene (UI built in code). |
-| `godot/scripts/main.gd` | UI, live reads, submit/mint/attest/verify flows, polling. |
+| `godot/scenes/main.tscn` | Main scene (game hub). |
+| `godot/game/game.gd` | Screens: menu, profile, play, verify, achievements, settings. |
+| `godot/game/world.gd` | Playable level (Kenney CC0 tiles): fragments, terminals, exit. |
+| `godot/autoload/profile.gd` | Persistent player profile + XP (user://profile.json). |
+| `godot/autoload/quest_state.gd` | Run-time quest state. |
+| `godot/services/cardano_service.gd` | Async bridge client (proof, attestation, tx status). |
+| `godot/services/cip30.gd` | CIP-30 wallet connector (browser). |
 | `backend/src/app.js` | Express app: read proxies, quest, CIP-68 mint, CIP-0170 endpoints. |
-| `backend/src/server.js` | Local dev server (`127.0.0.1:8787`). |
 | `backend/src/cardano.js` | Mesh SDK wallet, tx build/sign/submit, CIP-68 mint, Koios reads. |
 | `backend/src/cip0170.js` | CIP-0170: issuer AID, VC signing, on-chain anchor, verification. |
 | `backend/src/config.js` | Env loading, network mapping, validation. |

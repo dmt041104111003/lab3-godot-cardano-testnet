@@ -1,399 +1,116 @@
-# LAB3 Godot × Cardano Testnet
+# LAB3 Godot × Cardano Game
 
-A real Godot 4 application connected to the **Cardano Preprod testnet**: it reads
-live on-chain data, completes gameplay quests, submits real testnet transactions
-(metadata label 674), mints **CIP-68 achievement NFTs**, and anchors **CIP-0170
-identity/attestation** — all verified on-chain and shown inside the app.
+**Play Now:** https://dmt041104111003.github.io/lab3-godot-cardano-testnet/
 
-This repository contains both:
-1. the **Godot × Cardano product baseline** (validated, TRL 5), and
-2. the **CIP-0170 on-chain identity & attestation integration** built on it
-   (validated on Preprod; mainnet is the Pilot milestone).
+A playable Godot 4 game where you complete quests, build persistent progression,
+and earn achievements that are **verified on Cardano**. Real Preprod transactions
+happen only when you complete a meaningful milestone — gameplay stays fast and
+off-chain.
 
 ---
 
-## ✅ What this prototype proves
+## What the Game Is
 
-> A functional Godot application interacting with the public Cardano Preprod
-> testnet: it retrieves live on-chain data, initiates testnet transactions from a
-> gameplay flow, receives the transaction hash, and verifies confirmation on-chain.
-> It also issues signed CIP-0170 attestations anchored on-chain and verifies them.
+- A top-down dungeon quest game: collect **energy fragments**, activate
+  **terminals**, reach the **exit**.
+- Complete 3 quests per run, earn **XP and levels** that persist on your device.
+- When you finish a quest milestone, the game submits a real **Cardano Preprod**
+  transaction (proof + achievement attestation) and shows you the **transaction
+  hash** and **on-chain confirmation** right in the game.
+- Optional: connect your own **CIP-30 wallet** (Eternl/Nami) and your attestation
+  is signed by *your* wallet.
 
-## ⛔ What it does NOT prove
+This is an end-user game with Cardano integration — not a tutorial or SDK.
 
-> The integration is validated on **testnet only**. It is not yet live on **Cardano
-> mainnet** — mainnet deployment is the Catalyst Pilot's Milestone 1 target.
+## Gameplay
 
----
+1. **Play** → enter the level.
+2. **Quest 1:** collect 5 energy fragments.
+3. **Quest 2:** activate 3 terminals.
+4. **Quest 3:** reach the exit.
+5. Each quest completion = an XP reward + a **milestone** that triggers the
+   Cardano flow.
+6. **Achievements** screen shows each quest and whether it is **Verified on
+   Cardano**.
 
-## Real on-chain evidence (Preprod, 2026-08-17/18)
+## Player Progression
 
-Five independent testnet transactions were submitted and confirmed from this
-workflow. No hashes on this page are fabricated.
+- XP and level persist locally (`user://profile.json`).
+- Fragments/terminals collected and quest/verification status are saved.
+- Profile (name + wallet address) is set in **Player Profile**.
 
-| # | Transaction hash | Origin | Explorer |
-| - | ---------------- | ------ | -------- |
-| 1 | `30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162` | desktop bridge | https://preprod.cardanoscan.io/transaction/30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162 |
-| 2 | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` | desktop bridge | https://preprod.cardanoscan.io/transaction/4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501 |
-| 3 | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` | desktop bridge | https://preprod.cardanoscan.io/transaction/7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120 |
-| 4 | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` | hosted Vercel bridge | https://preprod.cardanoscan.io/transaction/73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4 |
-| 5 | `4fcd249e079df4487ba9bdca408fddcee7a08a6ea18fe767cd0a1d83e6a1008c` | hosted Vercel bridge | https://preprod.cardanoscan.io/transaction/4fcd249e079df4487ba9bdca408fddcee7a08a6ea18fe767cd0a1d83e6a1008c |
+## Cardano Integration
 
-> All five carry metadata under **label 674** (verified on-chain via Blockfrost —
-> see [docs/testnet-validation.md](docs/testnet-validation.md)). TX #4 and #5 were
-> signed and submitted by the **hosted bridge** — the same endpoint the browser
-> build uses.
+- The game never holds keys. It talks to a **hosted bridge** (Node.js + Mesh SDK,
+  Vercel) that signs and submits with a testnet wallet; private keys stay in
+  server-side env vars only.
+- Milestone → `POST /api/quest/complete` (proof, metadata label 674) → poll
+  confirmation → `POST /api/attestation/prepare` + `/create` (CIP-0170
+  attestation, metadata label 1701) → verify → **Verified on Cardano**.
+- Explorer links open the real transactions on Cardanoscan (Preprod).
 
-## 🎖 CIP-68 achievement NFTs (real on-chain assets)
-
-Beyond metadata, completing a quest can now mint a **CIP-68 NFT** into the wallet:
-a user token + a reference token carrying the achievement metadata as an inline
-datum — viewable as an NFT in any Cardano explorer. Confirmed on Preprod:
-
-- Policy: `2bf2c666eff15da20d4aa8cd79383ceb8d95e4b015574a8770f8c1f3`
-- Latest mint (hosted bridge): `02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7`
-  https://preprod.cardanoscan.io/transaction/02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7
-- In the app: complete a quest, then click **Mint Achievement NFT**.
-
-## 🪪 CIP-0170 — on-chain identity & attestation (new integration)
-
-The Pilot's new integration. A player links their profile to a Cardano wallet;
-when a qualifying milestone occurs, the backend validates the event and issues a
-**signed VerifiableCredential attestation** (issuer = KERI-style AID) that is
-**anchored on-chain** (metadata label 1701). Godot then verifies the on-chain
-anchor + issuer signature before showing the achievement as **verified**.
-
-Confirmed on Preprod (create v1 + update v2 + a hosted-bridge create) with
-`verified: true` — see [docs/cip-0170.md](docs/cip-0170.md).
-
-Players can also **authorize the attestation with their own CIP-30 wallet**
-(Eternl/Nami/Vespr in the browser): connect the wallet, sign the attestation hash
-with it, and the bridge anchors it on-chain with both the player and issuer
-signatures (verified true). This is the real "player wallet → attestation" flow
-the Pilot requires.
+## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph G["Godot (off-chain game state)"]
-        P["Player profile + wallet address"]
-        Q["Complete Quest → milestone"]
-        D["Show VERIFIED achievement"]
-    end
-    subgraph B["Backend / bridge (validation + attestation)"]
-        V["Validate milestone"]
-        A["Issue signed VC attestation<br/>KERI AID issuer + CIP-8 signature"]
-        AN["Anchor: metadata label 1701<br/>attestationHash · status · version"]
-    end
-    subgraph C["Cardano (transaction evidence)"]
-        TX["Confirmed transaction"]
-        M["On-chain anchor = source of truth"]
-    end
-    P --> Q --> V --> A --> AN --> TX --> M
-    M -. verify hash + signature .-> D
+    P["Player"] --> G["Godot gameplay (off-chain)"]
+    G -->|"quest milestone"| V["Milestone validation (bridge)"]
+    V --> A["CIP-0170 attestation (issuer KERI AID + CIP-8 signature)"]
+    A --> TX["Cardano Preprod transaction"]
+    TX --> C["On-chain confirmation"]
+    C -->|"verified"| G
 ```
 
-**In the app:** click **Register Identity** → **Attest Achievement** (tx anchored)
-→ **Verify On-Chain** (shows `VERIFIED ✓`).
+## Public Preprod Validation
 
-## Identity & attestation states (separated)
+Real transactions produced by this flow (Cardano Preprod):
 
-1. **Off-chain game state** — player profile linked to the wallet.
-2. **CIP-0170 attestation** — signed W3C VerifiableCredential (issued/updated).
-3. **Cardano transaction evidence** — on-chain anchor (label 1701), source of truth.
+| Quest | Proof tx | Attestation tx |
+| ----- | -------- | -------------- |
+| quest_1 | `34f6b17f77041da3e51d674de19b8727465f5376c8b9d908b46b3793c4ac2e80` | `0c00567a45b62d289915af29facc65429e4d0d9f1acd39edbd03cd9921623fc9` |
+| quest_2 | *(confirm-step, see attestation)* | `99755b126d276f20eed57191882b02d7de163364a7a8822cd5924bcfc343451f` |
+| quest_3 | `20a497f1cba6152aeabb8ef82a51ad3a6823062e9329a3fdb484f42fc5620d19` | `815925ee36b4e22ccdfe10a7f102d96081ed26657616d49d0f72730e2b07db4e` |
 
-Full details: [docs/cip-0170.md](docs/cip-0170.md).
+Open any hash in `https://preprod.cardanoscan.io/transaction/<hash>`.
+Full evidence: [docs/evidence/README.md](docs/evidence/README.md).
 
-## Verify it yourself — live, right now
+## Security Model
 
-1. **Web build (browser)** — open the GitHub Pages build and run a real test:
-   click **Play Quest** → play the mini-game (collect 5 gems) → the milestone is
-   reached; then **Submit Testnet Proof**, **Mint Achievement NFT**, or in
-   **IDENTITY & ATTESTATION (CIP-0170)**: **Register Identity** → **Connect Wallet
-   (CIP-30)** → **Attest Achievement** (signed by your own wallet) → **Verify
-   On-Chain**.
-2. **Hosted bridge** — `https://lab3-godot-cardano-bridge.vercel.app/health`
-   (live on Vercel; `/api/tip`, `/api/address_info`, `/api/quest/complete`).
-3. **On-chain proof** — the real Preprod transactions below, openable in any
-   Cardano explorer (metadata label 674).
+- No seed phrases, private keys, or API secrets are committed.
+- Signing happens only on the bridge (server-side env vars) or in the player's
+  own CIP-30 wallet.
+- `.env` is gitignored; `.env.example` documents required variables.
 
-> Every number in the app is fetched live from Cardano Preprod — nothing is
-> simulated. The web build + explorer links are the primary proof.
-
----
-
-## How it works (10-second version)
-
-```
-Browser:  Godot Web  ──reads (hosted bridge)──►  Cardano Preprod
-             │  POST /api/quest/complete
-             ▼
-Hosted bridge (Vercel, Node.js + Mesh SDK)  ──signs + submits──►  Cardano Preprod
-   │
-   └──► returns tx hash ──► Godot polls chain ──► CONFIRMED + explorer link
-
-Desktop:   Godot  ──reads (Koios)──►  Cardano Preprod
-             │  submit via local bridge (http://127.0.0.1:8787) or hosted bridge
-```
-
-Godot initiates the workflow; the bridge performs the signing (native Godot cannot
-reach browser CIP-30 wallets). Full detail:
-[docs/architecture.md](docs/architecture.md).
-
----
-
-## Architecture (renders on GitHub)
-
-```mermaid
-flowchart LR
-    subgraph Client["Godot 4 (GDScript)"]
-        UI["UI: player profile · network status · balance · quest · proof"]
-        LOG["Log console + confirmation polling"]
-    end
-
-    subgraph Reads["Live Cardano reads (real data)"]
-        K["Koios (desktop)<br/>https://preprod.koios.rest/api/v1"]
-        B["Hosted bridge proxies reads (web)<br/>/api/tip · /api/address_info · /api/tx_info"]
-    end
-
-    subgraph Bridge["Signing bridge (Node.js + Mesh SDK)"]
-        V["Vercel prod: https://lab3-godot-cardano-bridge.vercel.app<br/>env: NETWORK=preprod · PROVIDER=blockfrost · MNEMONIC"]
-        T["Build · sign tx · embed metadata (label 674)"]
-    end
-
-    subgraph Chain["Cardano Preprod (public testnet)"]
-        C["Wallet + transaction + confirmation"]
-    end
-
-    UI --> K
-    UI --> B
-    UI -- "POST /api/quest/complete (questId, playerAddress)" --> V
-    V --> T --> C
-    K --> C
-    B --> K
-```
-
-**Flow (as executed on 2026-08-17):**
-1. Godot queries the chain tip → shows `preprod` + live tip height.
-2. User pastes a testnet address → live balance in tADA (Koios / hosted bridge).
-3. User clicks **Complete Quest** → quest flag set locally.
-4. User clicks **Submit Testnet Proof** → `POST /api/quest/complete` on the bridge.
-5. Bridge builds a tx with metadata (label 674), signs with the testnet wallet,
-   submits to Preprod, returns the **tx hash**.
-6. Godot polls the tx status every 3 s until it is in a block.
-7. Godot shows **CONFIRMED (block height …)** and opens the explorer.
-
-> Desktop reads via Koios; browser reads via the hosted bridge (CORS). Submissions
-> always go through the bridge — Godot never holds the mnemonic.
-
----
-
-## Repository structure
-
-```
-.
-├── README.md                 ← you are here
-├── LICENSE                   MIT
-├── .env.example              ← template for local secrets (gitignored)
-├── .gitignore
-├── docs/
-│   ├── architecture.md       ← system design, data flow, live deployment
-│   ├── cip-0170.md           ← CIP-0170 identity & attestation (new integration)
-│   ├── testnet-validation.md ← REAL executed transactions on Preprod + reproduction
-│   ├── evidence.md           ← validation & evidence checklist
-│   └── live-demo.md          ← deployment guide (GitHub Pages + Vercel bridge)
-├── godot/
-│   ├── project.godot
-│   ├── export_presets.cfg    ← Web (HTML5) export preset
-│   ├── scenes/main.tscn
-│   └── scripts/
-│       └── main.gd           ← UI + live Cardano reads + submit flow + polling
-└── backend/
-    ├── package.json
-    ├── vercel.json           ← Vercel serverless config
-    ├── api/index.js          ← Vercel entry (exports the Express app)
-    └── src/
-        ├── server.js         ← local dev server (127.0.0.1:8787)
-        ├── app.js            ← Express app (routes, CORS, proxies)
-        ├── cardano.js        ← Mesh SDK wallet / build / sign / submit
-        ├── config.js         ← env + network mapping
-        └── scripts/
-            ├── gen-wallet.js ← generate a fresh testnet wallet
-            └── fund-wallet.js← show addresses + balance + faucet guidance
-```
-
----
-
-## Prerequisites (clean machine)
-
-- **Godot 4.x** — https://godotengine.org/download (any 4.x; GL Compatibility renderer)
-- **Node.js 18+** — https://nodejs.org (tested with Node 20)
-
-No Cardano node, cardano-cli, or Docker required.
-
----
-
-## Setup
-
-### 1. Clone & install backend
+## Running Locally
 
 ```bash
-git clone https://github.com/dmt041104111003/lab3-godot-cardano-testnet.git
-cd lab3-godot-cardano-testnet/backend
-npm install
-```
-
-### 2. Configure environment
-
-```bash
-cp ../.env.example ../.env
-```
-
-Edit `../.env` (this file is **gitignored**, never commit it):
-
-```dotenv
-NETWORK=preprod
-PORT=8787
-PROVIDER=koios            # or blockfrost (needs BLOCKFROST_API_KEY)
-# BLOCKFROST_API_KEY=preprodXXXX
-MNEMONIC=<24-word testnet mnemonic>
-```
-
-- `PROVIDER=koios` works with **no API key** (public Koios).
-- `PROVIDER=blockfrost` uses a free Preprod project id
-  (https://blockfrost.io → create a **Preprod** project). It is more reliable for
-  submission.
-
-### 3. Create a test wallet safely
-
-```bash
+# backend
 cd backend
-npm run key        # prints a fresh 24-word mnemonic + addresses
+cp ../.env.example ../.env   # set NETWORK=preprod, MNEMONIC, BLOCKFROST_API_KEY
+npm install
+npm start                    # bridge on http://127.0.0.1:8787
+
+# game
+open godot/project.godot in Godot 4.x → Play
 ```
 
-- Put the generated mnemonic in `.env` → `MNEMONIC=...`.
-- **Never share or commit the mnemonic.** It only funds testnet tADA.
-- To check an existing mnemonic's addresses: `npm run fund`.
+## Test Evidence
 
-### 4. Fund the test wallet (testnet faucet)
+- [docs/evidence/README.md](docs/evidence/README.md) — evidence bundle
+- [docs/testnet-validation.md](docs/testnet-validation.md) — transaction records
+- [docs/TESTER_GUIDE.md](docs/TESTER_GUIDE.md) — how external testers test
+- [docs/EXTERNAL_TESTING.md](docs/EXTERNAL_TESTING.md) — external tester results
 
-```bash
-npm run fund       # shows payment + stake address and current balance
-```
+## Current Product vs Planned CIP-0170 Integration
 
-If the balance is 0, use the **official Cardano testnet faucet**:
-
-1. Open https://docs.cardano.org/cardano-testnet/tools/faucet/
-2. Choose **Preprod**.
-3. Paste your **stake address** (`stake_test1…`, printed by `npm run fund`).
-4. Request test ADA (tADA). ~2–3 blocks later it arrives.
-
-### 5. Start the bridge
-
-```bash
-npm start          # → [bridge] listening on http://127.0.0.1:8787
-```
-
-Check it: `curl http://127.0.0.1:8787/health`
-
-### 6. Run the Godot app
-
-1. Open Godot → **Import** → select `godot/project.godot`.
-2. Press **Play (F5)**.
-3. Paste a testnet address (`addr_test1…`) into **Wallet address**.
-4. Click **Refresh Cardano Data** → live balance appears.
-5. Click **Complete Quest** → then **Submit Testnet Proof**.
-6. Wait for the tx hash → **CONFIRMED (block height …)**.
-7. Click **Open Explorer** to verify on-chain.
-
----
-
-## Environment variables
-
-| Variable | Default | Purpose |
-| -------- | ------- | ------- |
-| `NETWORK` | `preprod` | `preprod` or `preview` (testnet only) |
-| `PORT` | `8787` | Bridge HTTP port |
-| `PROVIDER` | `koios` | `koios` (no key) or `blockfrost` |
-| `BLOCKFROST_API_KEY` | *(empty)* | Preprod Blockfrost project id |
-| `MNEMONIC` | *(empty)* | 15/24-word testnet wallet mnemonic |
-| `LAB3_BRIDGE_URL` | `http://127.0.0.1:8787` | Godot → bridge URL (OS env override) |
-| `LAB3_KOIOS_URL` | `https://preprod.koios.rest/api/v1` | Godot read API (OS env override) |
-| `LAB3_NETWORK` | `preprod` | Godot display network name |
-| `LAB3_EXPLORER` | `https://preprod.cardanoscan.io/transaction` | Explorer base URL |
-| `LAB3_QUEST_ID` | `quest_001` | Quest id written into metadata |
-
-Godot reads its overrides from **OS environment variables** (set them before
-launching Godot) — `.env` is consumed by the bridge only.
-
----
-
-## Execute a real testnet transaction (exact steps)
-
-1. Bridge running (`npm start` in `backend/`).
-2. Godot app running, a funded testnet address pasted, balance visible.
-3. **Complete Quest** → **Submit Testnet Proof**.
-4. Godot calls `POST http://127.0.0.1:8787/api/quest/complete` with
-   `{"questId":"quest_001","playerAddress":"addr_test1…"}`.
-5. The bridge builds a tx with metadata label 674, signs it with the funded
-   testnet wallet, and submits it to Preprod via Blockfrost/Koios.
-6. The bridge returns the **tx hash**; Godot polls `POST /tx_info` (Koios) until
-   the tx appears in a block.
-7. Status flips to **CONFIRMED (block height …)**; **Open Explorer** shows the
-   on-chain transaction and its metadata.
-
-Verify independently:
-
-```bash
-curl -s -X POST https://preprod.koios.rest/api/v1/tx_info \
-  -H "Content-Type: application/json" \
-  -d '{"_tx_hashes":["30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162"]}'
-```
-
----
-
-## Security
-
-- **Never commit:** seed phrases, private keys, API secrets.
-- The mnemonic and Blockfrost key live only in gitignored `.env` (local) or Vercel
-  env vars (production). They are never committed.
-- The bridge binds to `127.0.0.1` for local development; production runs on Vercel.
-- Godot never sees the mnemonic — it only talks to the bridge.
-- All activity is on Cardano **testnet** (Preprod/Preview) — testnet funds only.
-
-## Web (browser) builds
-
-- Browser builds read live data from **Blockfrost** (CORS-enabled) using a public
-  Preprod key embedded in the build, and submit through the hosted bridge
-  (`https://lab3-godot-cardano-bridge.vercel.app`) — fully functional for
-  visitors with zero local setup.
-- Desktop builds read from **Koios** (no key) and submit to the local bridge
-  (`http://127.0.0.1:8787`) or the hosted bridge.
-- The web build auto-detects the environment via `OS.has_feature("web")`.
-
-## For reviewers — quick verification
-
-1. Open the web build (GitHub Pages URL) in a browser.
-2. Paste the bridge wallet address
-   `addr_test1qp6el7vnjgr2gqd5m7dcz92uw5pwqaddpp520jgy3xvd9l4fg96w0twerwjcahs5djhttqgj5slgt9yd6xftgecum22qraq6v4`
-   → the balance shows live tADA from Preprod.
-3. Click **Complete Quest** → **Submit Testnet Proof** → a real transaction is
-   signed by the hosted bridge and confirmed on-chain; the hash + block height
-   appear in the game.
-4. Click **Open Explorer** to view the transaction and its metadata (label 674)
-   on `preprod.cardanoscan.io`.
-5. Cross-check any hash in the explorer against
-   [docs/testnet-validation.md](docs/testnet-validation.md).
-
----
-
-## Docs
-
-- [architecture.md](docs/architecture.md) — system design & data flow
-- [cip-0170.md](docs/cip-0170.md) — CIP-0170 identity & attestation (new integration)
-- [testnet-validation.md](docs/testnet-validation.md) — real Preprod transactions
-- [evidence.md](docs/evidence.md) — validation & evidence checklist
-- [live-demo.md](docs/live-demo.md) — deployment guide (GitHub Pages + Vercel bridge)
+- **Current product (TRL 5):** playable Godot game + Cardano Preprod integration
+  validated end-to-end (proof + attestation + verification). Full CIP-0170
+  compliance (did:cardano, on-chain status registry) is **planned Pilot work** —
+  the game already implements the profile → wallet → milestone → attestation →
+  transaction → verification flow as an interface, ready for the full spec.
+- See [docs/TRL5_EVIDENCE.md](docs/TRL5_EVIDENCE.md) and
+  [docs/PROPOSAL_UPDATE.md](docs/PROPOSAL_UPDATE.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Game art: Kenney CC0 (see [godot/assets](godot/assets/README.md)).

@@ -103,30 +103,25 @@ func _build_arena() -> void:
 	add_child(body)
 
 func _draw() -> void:
-	# grass field
-	var tw := 70.0
-	for gx in range(0, int(ARENA_W / tw)):
-		for gy in range(0, int(ARENA_H / tw)):
-			var tex := grass if (gx + gy) % 2 == 0 else grass2
-			draw_texture_rect(tex, Rect2(gx * tw, gy * tw, tw, tw), false)
-	# Winding village road, water and foliage shadows add depth to the arena.
+	# Calm top-down field: broad shapes first, details kept deliberately subtle.
+	draw_rect(Rect2(0, 0, ARENA_W, ARENA_H), Color("#315f4c"))
+	for gx in range(0, int(ARENA_W), 80):
+		for gy in range(0, int(ARENA_H), 80):
+			if int(gx / 80 + gy / 80) % 2 == 0:
+				draw_rect(Rect2(gx, gy, 80, 80), Color(0.08, 0.22, 0.16, 0.08))
+	# A single low-contrast road guides the eye toward the gate.
 	var road := PackedVector2Array([
-		Vector2(0, 465), Vector2(220, 415), Vector2(470, 485), Vector2(740, 420),
-		Vector2(1010, 500), Vector2(1290, 420), Vector2(ARENA_W, 455),
-		Vector2(ARENA_W, 565), Vector2(1290, 530), Vector2(1010, 610),
-		Vector2(740, 530), Vector2(470, 595), Vector2(220, 525), Vector2(0, 575),
+		Vector2(0, 470), Vector2(360, 430), Vector2(760, 475), Vector2(1160, 425), Vector2(ARENA_W, 455),
+		Vector2(ARENA_W, 555), Vector2(1160, 525), Vector2(760, 575), Vector2(360, 530), Vector2(0, 570),
 	])
-	draw_colored_polygon(road, Color("#76654d"))
-	draw_polyline(road, Color(0.95, 0.82, 0.55, 0.18), 5.0)
-	draw_circle(Vector2(235, 165), 108, Color("#155e75"))
-	draw_circle(Vector2(235, 165), 94, Color("#1f87a1"))
-	for i in range(8):
-		var p := Vector2(120 + i * 185, 105 if i % 2 == 0 else 790)
-		draw_circle(p + Vector2(5, 8), 38, Color(0, 0, 0, 0.22))
-		draw_texture_rect(bush_tex, Rect2(p - Vector2(42, 42), Vector2(84, 84)), false)
-	# Soft arena vignette borders.
-	draw_rect(Rect2(0, 0, ARENA_W, 20), Color(0.02, 0.08, 0.10, 0.75))
-	draw_rect(Rect2(0, ARENA_H - 20, ARENA_W, 20), Color(0.02, 0.08, 0.10, 0.75))
+	draw_colored_polygon(road, Color("#8a795d"))
+	draw_polyline(road, Color(1.0, 0.9, 0.68, 0.12), 3.0)
+	# Small tree clusters frame the play space without covering gameplay.
+	for i in range(7):
+		var p := Vector2(115 + i * 225, 92 if i % 2 == 0 else 810)
+		draw_circle(p + Vector2(4, 7), 27, Color(0, 0, 0, 0.14))
+		draw_circle(p, 26, Color("#21483b"))
+		draw_circle(p - Vector2(7, 7), 18, Color("#3f7557"))
 	# gate glow
 	draw_circle(Vector2(ARENA_W - 80, ARENA_H / 2), 30, Color(0.3, 0.9, 0.45, 0.4))
 	draw_circle(Vector2(ARENA_W - 80, ARENA_H / 2), 18, Color(0.35, 0.95, 0.5))
@@ -205,7 +200,7 @@ func _cast_slash() -> void:
 	var dir: Vector2 = player.facing
 	var start: Vector2 = player.position + dir * 40
 	var end: Vector2 = player.position + dir * 260
-	var wave := _spawn_vfx(0, start + dir * 70, 0.28)
+	var wave := _spawn_vfx(0, start + dir * 55, 0.18)
 	wave.rotation = dir.angle()
 	wave.modulate = Color(0.65, 1.0, 1.0, 0.95)
 	_spawn_particles(start, Color(0.4, 0.9, 1.0), 10)
@@ -213,25 +208,25 @@ func _cast_slash() -> void:
 	var tw := create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(wave, "position", end, 0.22).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	tw.tween_property(wave, "scale", Vector2(0.48, 0.48), 0.22)
+	tw.tween_property(wave, "scale", Vector2(0.24, 0.24), 0.22)
 	tw.tween_property(wave, "modulate:a", 0.0, 0.28)
 	tw.tween_callback(func(): wave.queue_free())
-	_flash(Color(0.25, 0.9, 1.0, 0.10), 0.10)
-	_shake(7.0)
+	_flash(Color(0.25, 0.9, 1.0, 0.045), 0.08)
+	_shake(3.0)
 
 func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
 	var node := Node2D.new()
 	var col := _vfx_sprite(2)
-	col.scale = Vector2(0.12, 0.12)
+	col.scale = Vector2(0.075, 0.075)
 	col.rotation = dir.angle()
 	node.add_child(col)
 	var trail := Line2D.new()
-	trail.width = 18
-	trail.default_color = Color(1.0, 0.38, 0.06, 0.72)
+	trail.width = 9
+	trail.default_color = Color(1.0, 0.52, 0.14, 0.55)
 	trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	trail.end_cap_mode = Line2D.LINE_CAP_ROUND
-	trail.points = PackedVector2Array([Vector2.ZERO, -dir * 58])
+	trail.points = PackedVector2Array([Vector2.ZERO, -dir * 32])
 	node.add_child(trail)
 	var light := PointLight2D.new()
 	light.energy = 1.3
@@ -270,10 +265,10 @@ func _damage_monster(m: Dictionary, dmg: int) -> void:
 	m.hp -= dmg
 	_spawn_particles(m.pos, Color(1.0, 0.4, 0.3), 8)
 	_spawn_popup(m.pos, str(dmg), Color(1.0, 0.5, 0.4))
-	var hit := _spawn_vfx(1, m.pos, 0.12)
+	var hit := _spawn_vfx(1, m.pos, 0.065)
 	var hit_tw := create_tween()
 	hit_tw.set_parallel(true)
-	hit_tw.tween_property(hit, "scale", Vector2(0.22, 0.22), 0.22)
+	hit_tw.tween_property(hit, "scale", Vector2(0.12, 0.12), 0.18)
 	hit_tw.tween_property(hit, "modulate:a", 0.0, 0.25)
 	hit_tw.tween_callback(func(): hit.queue_free())
 	if m.hp <= 0:
@@ -282,7 +277,7 @@ func _damage_monster(m: Dictionary, dmg: int) -> void:
 		_spawn_particles(m.pos, Color(0.6, 1.0, 0.4), 16)
 		_spawn_popup(m.pos, "+50", Color(0.6, 1.0, 0.4))
 		_spawn_impact(m.pos, true)
-		_shake(12.0)
+		_shake(5.0)
 		monsters_killed.emit(monsters_left)
 
 func _vfx_sprite(cell: int) -> Sprite2D:
@@ -303,21 +298,21 @@ func _spawn_vfx(cell: int, pos: Vector2, effect_scale: float) -> Sprite2D:
 	return sprite
 
 func _spawn_impact(pos: Vector2, fiery: bool) -> void:
-	var fx := _spawn_vfx(3 if fiery else 1, pos, 0.08)
+	var fx := _spawn_vfx(3 if fiery else 1, pos, 0.055)
 	var light := PointLight2D.new()
 	light.texture = _radial_light_texture()
 	light.color = Color("#ff8a22") if fiery else Color("#52e8ff")
-	light.energy = 2.8
-	light.texture_scale = 4.0
+	light.energy = 1.5
+	light.texture_scale = 2.5
 	fx.add_child(light)
 	var tw := create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(fx, "scale", Vector2(0.25, 0.25), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(fx, "scale", Vector2(0.13, 0.13), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(fx, "modulate:a", 0.0, 0.42).set_delay(0.10)
 	tw.tween_callback(func(): fx.queue_free()).set_delay(0.45)
-	_spawn_particles(pos, light.color, 22, 180.0)
-	_flash(Color(light.color, 0.14), 0.12)
-	_shake(9.0)
+	_spawn_particles(pos, light.color, 10, 140.0)
+	_flash(Color(light.color, 0.055), 0.09)
+	_shake(4.0)
 
 func _flash(color: Color, duration: float) -> void:
 	var flash := ColorRect.new()

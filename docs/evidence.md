@@ -3,17 +3,16 @@
 Everything needed to verify that this prototype really works — the live chain
 checks, the executed transactions, and the checklist for independent review.
 
-## What was validated
+## What was validated (Cardano Preprod)
 
-- A functional Godot 4 application that reads live Cardano Preprod data
-  (tip height, address balance) from the public Koios API.
-- A real testnet transaction initiated from the Godot gameplay flow, signed by a
-  funded testnet wallet through the local bridge, submitted on-chain, and
-  confirmed in a block.
-- The submitted transaction carries verifiable metadata under **label 674**.
-
-> This prototype does not yet implement CIP-0170. CIP-0170 is the next
-> integration step that will build on this validated Godot × Cardano baseline.
+- Godot 4 reads live Preprod data (tip height, address balance) via Koios / the
+  hosted bridge.
+- Real testnet transactions signed by a funded wallet through the bridge and
+  confirmed on-chain (metadata label 674).
+- **CIP-68 achievement NFTs** minted into the wallet and confirmed on-chain.
+- **CIP-0170 attestations** issued (signed VC, KERI AID issuer), anchored on-chain
+  (label 1701), and verified (`verified: true`).
+- All integration runs are repeatable (multiple independent transactions).
 
 ## Live chain checks (independent, read-only)
 

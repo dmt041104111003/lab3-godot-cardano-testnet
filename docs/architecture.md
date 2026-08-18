@@ -4,88 +4,86 @@
 
 ```
 ┌───────────────────────────┐   HTTPS (browser)    ┌──────────────────────────────┐
-│  Godot 4 client           │ ───────────────────► │  Blockfrost (Preprod, reads)  │
-│  (godot/ — GDScript)      │ GET /addresses/{a}   │  https://cardano-preprod.    │
-│  - Player profile panel   │ GET /block/latest    │  blockfrost.io/api/v0        │
-│  - Network status         │ GET /txs/{hash}      │  (CORS-enabled)              │
-│  - Balance lookup         │                      └──────────────────────────────┘
-│  - Complete Quest         │   HTTPS (browser)    ┌──────────────────────────────┐
-│  - Submit Testnet Proof   │ ───────────────────► │  Signing bridge (Vercel,     │
-│  - Tx hash + explorer     │ POST /api/quest/     │  https://lab3-godot-cardano- │
-└───────────────────────────┘ complete             │  bridge.vercel.app)          │
-                                                   │  - reads Koios (tip, address, │
-                                                   │    tx status) via proxy       │
-                                                   │  - builds + signs tx          │
-                                                   │  - embeds metadata (label 674)│
-                                                   └───────────────┬──────────────┘
-                                                                   │ submit
-                                                           ┌───────▼────────┐
-                                                           │ Cardano Preprod│
-                                                           │ (public testnet)│
-                                                           └────────────────┘
+│  Godot 4 client           │ ───────────────────► │  Signing bridge (Vercel)      │
+│  (godot/ — GDScript)      │ /api/tip            │  https://lab3-godot-cardano-  │
+│  - Player profile panel   │ /api/address_info   │  bridge.vercel.app            │
+│  - Network status         │ /api/tx_info        │  ├ reads (Koios proxy)         │
+│  - Balance lookup         │ /api/quest/complete │  ├ CIP-68 NFT mint            │
+│  - Quest + proof          │ /api/quest/complete-│  ├ CIP-0170 attestation       │
+│  - CIP-0170 attestation   │   nft               │  └ signs + submits on-chain   │
+│  - Tx hash + explorer     │ /api/attestation/*  └───────────────┬──────────────┘
+└───────────────────────────┘                                     │ submit
+                                                          ┌───────▼────────┐
+                                                          │ Cardano Preprod│
+                                                          │ (public testnet)│
+                                                          └────────────────┘
 
 Desktop builds: reads go straight to Koios (https://preprod.koios.rest/api/v1),
 submit goes to a local bridge (http://127.0.0.1:8787) or the hosted bridge.
 ```
 
-## Why a signing bridge?
+## Signing bridge
 
-Native Godot 4 has **no access to browser-based CIP-30 wallet extensions** (the way
-web apps sign transactions). To send a real Cardano transaction the app must hold a
-signing key somewhere. The solution is a **bridge service** that:
+Native Godot 4 has **no access to browser CIP-30 wallet extensions**, so a bridge
+service holds the testnet wallet and performs signing:
 
-1. Holds a funded **testnet-only** wallet (mnemonic read from environment
-   variables — `.env` locally, Vercel env vars in production).
-2. Builds a transaction with Mesh SDK (`@meshsdk/core`), signs it, and submits it
-   to Cardano Preprod.
-3. Never exposes the mnemonic to the Godot client — Godot only sends a small JSON
-   request (`questId` + `playerAddress`).
+1. Holds a funded **testnet-only** wallet (mnemonic in env vars — `.env` locally,
+   Vercel env vars in production).
+2. Builds transactions with Mesh SDK (`@meshsdk/core`), signs, and submits.
+3. Godot never sees the mnemonic — it sends small JSON requests and receives
+   transaction hashes.
 
 > **Godot initiates the workflow; the bridge performs the signing.**
 
-## Live deployment (production)
+## Live deployment
 
-- **Web build (frontend):** Godot HTML5 export served by **GitHub Pages**
+- **Web build (frontend):** Godot HTML5 export on **GitHub Pages**
   (`https://dmt041104111003.github.io/lab3-godot-cardano-testnet/`).
-- **Bridge (backend):** deployed on **Vercel** (production)
+- **Bridge (backend):** **Vercel** production
   `https://lab3-godot-cardano-bridge.vercel.app` with env vars:
   `NETWORK=preprod`, `PROVIDER=blockfrost`, `BLOCKFROST_API_KEY`, `MNEMONIC`.
-- The web build auto-detects the browser (`OS.has_feature("web")`) and points
-  reads at Blockfrost and submissions at the hosted bridge — visitors can test
-  real transactions with no local setup.
+- Web builds detect the browser (`OS.has_feature("web")`) and route all reads and
+  submissions through the hosted bridge (CORS-enabled). Desktop builds read from
+  Koios directly.
 
-## Data flow (as executed on 2026-08-17)
+## Data flow (baseline)
 
-1. Godot starts → queries the chain tip → shows network + live tip height.
-   - Web: `GET /block/latest` (Blockfrost) · Desktop: `GET /api/v1/tip` (Koios).
-2. User pastes an address → live balance in tADA.
-   - Web: `GET /addresses/{addr}` (Blockfrost) · Desktop: `POST /api/v1/address_info` (Koios).
+1. Godot queries the chain tip → shows `preprod` + live tip height.
+   (Web: `/api/tip` on the bridge · Desktop: Koios `/tip`.)
+2. User pastes a testnet address → live balance in tADA.
 3. User clicks **Complete Quest** → quest flag set locally.
-4. User clicks **Submit Testnet Proof** → `POST /api/quest/complete` on the bridge
-   (hosted URL on web, localhost on desktop) with `{ questId, playerAddress }`.
-5. Bridge builds a tx with metadata (label 674), signs with the testnet wallet,
-   submits via Blockfrost, returns `txHash`.
-6. Godot polls the tx status every 3 s until the tx is in a block.
-7. Godot shows the confirmed hash + block height and opens the explorer.
+4. User clicks **Submit Testnet Proof** → `POST /api/quest/complete`
+   `{ questId, playerAddress }`.
+5. Bridge builds a tx with metadata **label 674**, signs, submits, returns `txHash`.
+6. Godot polls tx status until it is in a block.
+7. Godot shows **CONFIRMED (block height …)** and opens the explorer.
 
-## Metadata payload (label 674)
+## CIP-0170 attestation flow (new integration)
 
-```json
-{
-  "project": "LAB3 Godot Cardano Testnet",
-  "event": "quest_completed",
-  "quest_id": "quest_001",
-  "network": "preprod",
-  "player_addr_a": "<first 54 chars of player address>",
-  "player_addr_b": "<remaining chars of player address>",
-  "tag": "LAB3_GODOT_CARDANO_TESTNET"
-}
-```
+1. Player links a profile to a Cardano wallet (`/api/player/register`).
+2. A qualifying milestone → `POST /api/attestation/create` (or `/update`).
+3. Backend validates the event and issues a **signed W3C VerifiableCredential**
+   (issuer = KERI-style AID, CIP-8 Ed25519 signature).
+4. The attestation is **anchored on-chain** — metadata **label 1701** holds
+   `attestationHash`, issuer AID, subject, status, version.
+5. Godot calls `/api/attestation/verify`; the bridge recomputes the hash and
+   verifies the issuer signature against the on-chain anchor.
+6. Only then is the achievement shown as **verified**.
 
-> Cardano metadata strings are limited to **64 bytes**. Full Bech32 addresses are
-> ~103 chars, so the player address is split across `player_addr_a` + `player_addr_b`
-> (concatenate to recover the full address). This is verified on-chain in the
-> executed transactions (see [testnet-validation.md](testnet-validation.md)).
+State separation:
+
+| # | Layer | Where |
+| - | ----- | ----- |
+| 1 | Off-chain game state | player profile (backend, per-process) |
+| 2 | CIP-0170 attestation | signed VerifiableCredential (held by client/bridge) |
+| 3 | Cardano transaction evidence | on-chain anchor, label 1701 (source of truth) |
+
+## On-chain metadata
+
+- **Label 674** — baseline proof / pilot message tag (`LAB3_GODOT_CARDANO_TESTNET`).
+- **Label 1701** — CIP-0170 attestation anchor (`tag: LAB3_CIP0170`).
+- Cardano metadata strings are capped at **64 bytes**; long addresses are split
+  across `_a`/`_b` fields (concatenate to recover).
 
 ## Components
 
@@ -93,29 +91,24 @@ signing key somewhere. The solution is a **bridge service** that:
 | ---- | ---- |
 | `godot/project.godot` | Godot 4 project (GL Compatibility renderer). |
 | `godot/export_presets.cfg` | Web (HTML5) export preset. |
-| `godot/scenes/main.tscn` | Minimal main scene (UI is built in code for clarity). |
-| `godot/scripts/main.gd` | UI, live reads (Koios/Blockfrost), submit flow, polling. |
-| `backend/src/app.js` | Express app: `/health`, read proxies, `/api/quest/complete`, `/api/tx/:hash`. |
-| `backend/src/server.js` | Local dev server (binds `127.0.0.1:8787`). |
-| `backend/api/index.js` | Vercel serverless entry (exports the Express app). |
-| `backend/vercel.json` | Vercel function config + routing. |
-| `backend/src/cardano.js` | Mesh SDK wallet, tx build/sign/submit, Koios tx status. |
+| `godot/scenes/main.tscn` | Main scene (UI built in code). |
+| `godot/scripts/main.gd` | UI, live reads, submit/mint/attest/verify flows, polling. |
+| `backend/src/app.js` | Express app: read proxies, quest, CIP-68 mint, CIP-0170 endpoints. |
+| `backend/src/server.js` | Local dev server (`127.0.0.1:8787`). |
+| `backend/src/cardano.js` | Mesh SDK wallet, tx build/sign/submit, CIP-68 mint, Koios reads. |
+| `backend/src/cip0170.js` | CIP-0170: issuer AID, VC signing, on-chain anchor, verification. |
 | `backend/src/config.js` | Env loading, network mapping, validation. |
-| `backend/src/scripts/gen-wallet.js` | Generate a fresh testnet wallet. |
-| `backend/src/scripts/fund-wallet.js` | Show addresses + current balance (faucet guidance). |
+| `backend/api/index.js` | Vercel serverless entry. |
+| `backend/vercel.json` | Vercel function config + routing. |
 
-## Network / provider mapping
+## Network / provider
 
-- `NETWORK=preprod` (default) or `preview` — testnet only, never mainnet.
+- `NETWORK=preprod` (default) or `preview` — testnet only.
 - `PROVIDER=koios` (default, no key) or `blockfrost` (needs `BLOCKFROST_API_KEY`).
-- Mesh `AppWallet` network id: `0` = testnet (preprod/preview), `1` = mainnet
-  (verified at runtime: `0 → addr_test1…`, `1 → addr1…`).
+- Mesh `AppWallet` network id: `0` = testnet (preprod/preview), `1` = mainnet.
 
-## Security notes
+## Security
 
-- The mnemonic lives only in environment variables — `.env` locally (gitignored)
-  or Vercel env vars in production. It is never committed.
-- The Godot client never sees the mnemonic; it only talks to the bridge.
-- All activity is on Cardano **testnet** (Preprod) — testnet funds only.
-- The web build embeds a **public Preprod-only Blockfrost key** for reads (free,
-  testnet, CORS-enabled); it is not a mainnet credential.
+- Mnemonic lives only in env vars (`.env` gitignored locally; Vercel in prod).
+- Godot never holds the mnemonic.
+- All activity is on Cardano **testnet** (Preprod).

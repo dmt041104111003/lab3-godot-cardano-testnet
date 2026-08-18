@@ -1,35 +1,34 @@
 # LAB3 Godot × Cardano Testnet
 
-A minimal but **real** Godot 4 application that connects to the **Cardano Preprod
-testnet**, reads live on-chain data, lets a player complete a quest, and submits a
-**real testnet transaction** carrying verifiable metadata — then shows the
-confirmed transaction hash inside the app.
+A real Godot 4 application connected to the **Cardano Preprod testnet**: it reads
+live on-chain data, completes gameplay quests, submits real testnet transactions
+(metadata label 674), mints **CIP-68 achievement NFTs**, and anchors **CIP-0170
+identity/attestation** — all verified on-chain and shown inside the app.
 
-This is the **validated Godot × Cardano product baseline** that a future CIP-0170
-integration will build on. It is **not** the CIP-0170 integration itself.
+This repository contains both:
+1. the **Godot × Cardano product baseline** (validated, TRL 5), and
+2. the **CIP-0170 on-chain identity & attestation integration** built on it
+   (validated on Preprod; mainnet is the Pilot milestone).
 
 ---
 
 ## ✅ What this prototype proves
 
-> This prototype demonstrates a functional Godot application interacting with a
-> public Cardano testnet environment. It retrieves live Cardano data, initiates a
-> testnet blockchain interaction from a gameplay flow, receives the resulting
-> transaction hash, and verifies confirmation on-chain.
+> A functional Godot application interacting with the public Cardano Preprod
+> testnet: it retrieves live on-chain data, initiates testnet transactions from a
+> gameplay flow, receives the transaction hash, and verifies confirmation on-chain.
+> It also issues signed CIP-0170 attestations anchored on-chain and verifies them.
 
 ## ⛔ What it does NOT prove
 
-> The prototype does not yet implement the full CIP-0170 on-chain identity spec.
-> CIP-0170 is the **new integration** built on this baseline — the core of the
-> Catalyst Pilot. A working CIP-0170 attestation layer is implemented and tested
-> on Preprod (see [docs/cip-0170.md](docs/cip-0170.md)); mainnet deployment is the
-> Pilot milestone.
+> The integration is validated on **testnet only**. It is not yet live on **Cardano
+> mainnet** — mainnet deployment is the Catalyst Pilot's Milestone 1 target.
 
 ---
 
-## Real on-chain evidence (Preprod, 2026-08-17)
+## Real on-chain evidence (Preprod, 2026-08-17/18)
 
-Four independent testnet transactions were submitted and confirmed from this
+Five independent testnet transactions were submitted and confirmed from this
 workflow. No hashes on this page are fabricated.
 
 | # | Transaction hash | Origin | Explorer |
@@ -38,11 +37,12 @@ workflow. No hashes on this page are fabricated.
 | 2 | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` | desktop bridge | https://preprod.cardanoscan.io/transaction/4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501 |
 | 3 | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` | desktop bridge | https://preprod.cardanoscan.io/transaction/7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120 |
 | 4 | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` | hosted Vercel bridge | https://preprod.cardanoscan.io/transaction/73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4 |
+| 5 | `4fcd249e079df4487ba9bdca408fddcee7a08a6ea18fe767cd0a1d83e6a1008c` | hosted Vercel bridge | https://preprod.cardanoscan.io/transaction/4fcd249e079df4487ba9bdca408fddcee7a08a6ea18fe767cd0a1d83e6a1008c |
 
-> All four carry metadata under **label 674** (verified on-chain via Blockfrost —
-> see [docs/testnet-validation.md](docs/testnet-validation.md)). TX #4 was signed
-> and submitted by the **hosted bridge** — the same endpoint the browser build
-> uses.
+> All five carry metadata under **label 674** (verified on-chain via Blockfrost —
+> see [docs/testnet-validation.md](docs/testnet-validation.md)). TX #4 and #5 were
+> signed and submitted by the **hosted bridge** — the same endpoint the browser
+> build uses.
 
 ## 🎖 CIP-68 achievement NFTs (real on-chain assets)
 

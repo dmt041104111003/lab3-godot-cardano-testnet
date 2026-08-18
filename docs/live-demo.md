@@ -13,16 +13,17 @@ This project runs in two parts, both already deployed for production:
       `NETWORK=preprod`, `PROVIDER=blockfrost`, `BLOCKFROST_API_KEY`, `MNEMONIC`.
 - [x] Real Preprod transactions submitted through the hosted bridge
       (see [testnet-validation.md](testnet-validation.md), TX #4).
-- [ ] Enable GitHub Pages: `Settings → Pages → Deploy from a branch →
-      gh-pages → / (root) → Save`.
+- [x] GitHub Pages live — the web build is publicly accessible at the URL above.
 
 ## How the browser build talks to Cardano
 
-- **Reads:** the web build reads live Preprod data directly from **Blockfrost**
-  (CORS-enabled, public Preprod key embedded in the build).
-- **Submissions:** `POST /api/quest/complete` goes to the hosted bridge, which
-  signs with the testnet wallet (mnemonic only in Vercel env vars) and submits
-  on-chain. Visitors need zero local setup.
+- **Reads:** the web build reads live Preprod data through the hosted bridge
+  proxies (`/api/tip`, `/api/address_info`, `/api/tx_info`), which are
+  CORS-enabled and re-serve the public Koios data. No key is exposed in the build.
+- **Submissions / mint / attestation:** `POST /api/quest/complete`,
+  `/api/quest/complete-nft`, and `/api/attestation/*` go to the hosted bridge,
+  which signs with the testnet wallet (mnemonic only in Vercel env vars) and
+  submits on-chain. Visitors need zero local setup.
 - Godot detects the browser via `OS.has_feature("web")` and switches the bridge
   URL automatically. Desktop builds read from Koios and submit to
   `http://127.0.0.1:8787` or the hosted bridge.

@@ -29,6 +29,9 @@ var slime1: Texture2D
 var slime2: Texture2D
 var grass: Texture2D
 var grass2: Texture2D
+var bush_tex: Texture2D
+var vfx_tex: Texture2D
+var shake_strength := 0.0
 
 func _safe_tex(path: String) -> Texture2D:
 	var t = load(path)
@@ -44,6 +47,8 @@ func _ready() -> void:
 	slime2 = _safe_tex("res://assets/enemies/slimeWalk2.png")
 	grass = _safe_tex("res://assets/tiles/grassMid.png")
 	grass2 = _safe_tex("res://assets/tiles/grassHalfMid.png")
+	bush_tex = _safe_tex("res://assets/background/bush.png")
+	vfx_tex = _safe_tex("res://assets/effects/magic_vfx_sheet.png")
 	_build_arena()
 	_build_coins()
 	_build_monsters()
@@ -57,6 +62,7 @@ func _ready() -> void:
 	light.energy = 1.3
 	light.texture_scale = 10.0
 	light.color = Color(1.0, 0.95, 0.8)
+	light.texture = _radial_light_texture()
 	player.add_child(light)
 	cam = Camera2D.new()
 	cam.limit_left = 0
@@ -66,7 +72,7 @@ func _ready() -> void:
 	cam.position_smoothing_enabled = true
 	player.add_child(cam)
 	var dark := CanvasModulate.new()
-	dark.color = Color(0.45, 0.48, 0.55)
+	dark.color = Color(0.68, 0.72, 0.78)
 	add_child(dark)
 
 func _process(delta: float) -> void:
@@ -78,6 +84,7 @@ func _process(delta: float) -> void:
 	_handle_skills()
 	_update_projectiles(delta)
 	_poll_presence(delta)
+	_update_camera_shake(delta)
 	queue_redraw()
 
 # ---------------------------------------------------------------------------
@@ -102,6 +109,24 @@ func _draw() -> void:
 		for gy in range(0, int(ARENA_H / tw)):
 			var tex := grass if (gx + gy) % 2 == 0 else grass2
 			draw_texture_rect(tex, Rect2(gx * tw, gy * tw, tw, tw), false)
+	# Winding village road, water and foliage shadows add depth to the arena.
+	var road := PackedVector2Array([
+		Vector2(0, 465), Vector2(220, 415), Vector2(470, 485), Vector2(740, 420),
+		Vector2(1010, 500), Vector2(1290, 420), Vector2(ARENA_W, 455),
+		Vector2(ARENA_W, 565), Vector2(1290, 530), Vector2(1010, 610),
+		Vector2(740, 530), Vector2(470, 595), Vector2(220, 525), Vector2(0, 575),
+	])
+	draw_colored_polygon(road, Color("#76654d"))
+	draw_polyline(road, Color(0.95, 0.82, 0.55, 0.18), 5.0)
+	draw_circle(Vector2(235, 165), 108, Color("#155e75"))
+	draw_circle(Vector2(235, 165), 94, Color("#1f87a1"))
+	for i in range(8):
+		var p := Vector2(120 + i * 185, 105 if i % 2 == 0 else 790)
+		draw_circle(p + Vector2(5, 8), 38, Color(0, 0, 0, 0.22))
+		draw_texture_rect(bush_tex, Rect2(p - Vector2(42, 42), Vector2(84, 84)), false)
+	# Soft arena vignette borders.
+	draw_rect(Rect2(0, 0, ARENA_W, 20), Color(0.02, 0.08, 0.10, 0.75))
+	draw_rect(Rect2(0, ARENA_H - 20, ARENA_W, 20), Color(0.02, 0.08, 0.10, 0.75))
 	# gate glow
 	draw_circle(Vector2(ARENA_W - 80, ARENA_H / 2), 30, Color(0.3, 0.9, 0.45, 0.4))
 	draw_circle(Vector2(ARENA_W - 80, ARENA_H / 2), 18, Color(0.35, 0.95, 0.5))
@@ -180,28 +205,39 @@ func _cast_slash() -> void:
 	var dir: Vector2 = player.facing
 	var start: Vector2 = player.position + dir * 40
 	var end: Vector2 = player.position + dir * 260
-	var wave := Line2D.new()
-	wave.points = PackedVector2Array([start, end])
-	wave.width = 26
-	wave.default_color = Color(0.4, 0.9, 1.0, 0.8)
-	add_child(wave)
+	var wave := _spawn_vfx(0, start + dir * 70, 0.28)
+	wave.rotation = dir.angle()
+	wave.modulate = Color(0.65, 1.0, 1.0, 0.95)
 	_spawn_particles(start, Color(0.4, 0.9, 1.0), 10)
 	_damage_in_rect(Rect2(start.x - 30, start.y - 40, dir.x * 260 + 60, 80), 1)
 	var tw := create_tween()
-	tw.tween_property(wave, "modulate:a", 0.0, 0.25)
+	tw.set_parallel(true)
+	tw.tween_property(wave, "position", end, 0.22).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(wave, "scale", Vector2(0.48, 0.48), 0.22)
+	tw.tween_property(wave, "modulate:a", 0.0, 0.28)
 	tw.tween_callback(func(): wave.queue_free())
+	_flash(Color(0.25, 0.9, 1.0, 0.10), 0.10)
+	_shake(7.0)
 
 func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
 	var node := Node2D.new()
-	var col := Polygon2D.new()
-	col.polygon = PackedVector2Array([Vector2(12, 0), Vector2(-7, -9), Vector2(-7, 9)])
-	col.color = Color(1.0, 0.6, 0.2)
+	var col := _vfx_sprite(2)
+	col.scale = Vector2(0.12, 0.12)
+	col.rotation = dir.angle()
 	node.add_child(col)
+	var trail := Line2D.new()
+	trail.width = 18
+	trail.default_color = Color(1.0, 0.38, 0.06, 0.72)
+	trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	trail.end_cap_mode = Line2D.LINE_CAP_ROUND
+	trail.points = PackedVector2Array([Vector2.ZERO, -dir * 58])
+	node.add_child(trail)
 	var light := PointLight2D.new()
 	light.energy = 1.3
 	light.texture_scale = 5.0
 	light.color = Color(1.0, 0.7, 0.3)
+	light.texture = _radial_light_texture()
 	node.add_child(light)
 	node.position = player.position + dir * 36
 	add_child(node)
@@ -220,6 +256,7 @@ func _update_projectiles(delta: float) -> void:
 		for m in monsters.duplicate():
 			if node.position.distance_to(m.pos) < 30:
 				_damage_monster(m, 1)
+				_spawn_impact(node.position, true)
 				projectiles.erase(p)
 				node.queue_free()
 				break
@@ -233,12 +270,89 @@ func _damage_monster(m: Dictionary, dmg: int) -> void:
 	m.hp -= dmg
 	_spawn_particles(m.pos, Color(1.0, 0.4, 0.3), 8)
 	_spawn_popup(m.pos, str(dmg), Color(1.0, 0.5, 0.4))
+	var hit := _spawn_vfx(1, m.pos, 0.12)
+	var hit_tw := create_tween()
+	hit_tw.set_parallel(true)
+	hit_tw.tween_property(hit, "scale", Vector2(0.22, 0.22), 0.22)
+	hit_tw.tween_property(hit, "modulate:a", 0.0, 0.25)
+	hit_tw.tween_callback(func(): hit.queue_free())
 	if m.hp <= 0:
 		monsters.erase(m)
 		monsters_left -= 1
 		_spawn_particles(m.pos, Color(0.6, 1.0, 0.4), 16)
 		_spawn_popup(m.pos, "+50", Color(0.6, 1.0, 0.4))
+		_spawn_impact(m.pos, true)
+		_shake(12.0)
 		monsters_killed.emit(monsters_left)
+
+func _vfx_sprite(cell: int) -> Sprite2D:
+	var atlas := AtlasTexture.new()
+	atlas.atlas = vfx_tex
+	var half := Vector2(vfx_tex.get_width() / 2.0, vfx_tex.get_height() / 2.0)
+	atlas.region = Rect2(Vector2((cell % 2) * half.x, (cell / 2) * half.y), half)
+	var sprite := Sprite2D.new()
+	sprite.texture = atlas
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	return sprite
+
+func _spawn_vfx(cell: int, pos: Vector2, effect_scale: float) -> Sprite2D:
+	var sprite := _vfx_sprite(cell)
+	sprite.position = pos
+	sprite.scale = Vector2(effect_scale, effect_scale)
+	add_child(sprite)
+	return sprite
+
+func _spawn_impact(pos: Vector2, fiery: bool) -> void:
+	var fx := _spawn_vfx(3 if fiery else 1, pos, 0.08)
+	var light := PointLight2D.new()
+	light.texture = _radial_light_texture()
+	light.color = Color("#ff8a22") if fiery else Color("#52e8ff")
+	light.energy = 2.8
+	light.texture_scale = 4.0
+	fx.add_child(light)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(fx, "scale", Vector2(0.25, 0.25), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(fx, "modulate:a", 0.0, 0.42).set_delay(0.10)
+	tw.tween_callback(func(): fx.queue_free()).set_delay(0.45)
+	_spawn_particles(pos, light.color, 22, 180.0)
+	_flash(Color(light.color, 0.14), 0.12)
+	_shake(9.0)
+
+func _flash(color: Color, duration: float) -> void:
+	var flash := ColorRect.new()
+	flash.color = color
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+	layer.add_child(flash)
+	var tw := create_tween()
+	tw.tween_property(flash, "color:a", 0.0, duration)
+	tw.tween_callback(func(): layer.queue_free())
+
+func _shake(amount: float) -> void:
+	shake_strength = maxf(shake_strength, amount)
+
+func _update_camera_shake(delta: float) -> void:
+	if cam == null:
+		return
+	shake_strength = move_toward(shake_strength, 0.0, delta * 35.0)
+	cam.offset = Vector2(randf_range(-shake_strength, shake_strength), randf_range(-shake_strength, shake_strength))
+
+func _radial_light_texture() -> Texture2D:
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1, 1, 1, 1))
+	gradient.set_color(1, Color(1, 1, 1, 0))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = 128
+	texture.height = 128
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	return texture
 
 # ---------------------------------------------------------------------------
 # Other players (online presence)

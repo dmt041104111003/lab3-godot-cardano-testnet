@@ -2,6 +2,6 @@
 
 https://dmt041104111003.github.io/lab3-godot-cardano-testnet/
 
-Platformer with Cardano Preprod verification. Login with your wallet.
+Online platformer with Cardano Preprod verification, chat, and player presence.
 Full source, docs and evidence: https://github.com/dmt041104111003/lab3-godot-cardano-testnet
 

@@ -61,7 +61,20 @@ this prototype. No transaction hash on this page is fabricated.
 > signs and submits real Preprod transactions — the same endpoint the browser
 > web build uses.
 
-> Four independent runs confirm the flow **repeats without failure**.
+### TX #5 — `quest_id: quest_001` (current code, hosted Vercel bridge)
+
+| Field | Value |
+| ----- | ----- |
+| Transaction hash | `4fcd249e079df4487ba9bdca408fddcee7a08a6ea18fe767cd0a1d83e6a1008c` |
+| Explorer URL | https://preprod.cardanoscan.io/transaction/4fcd249e079df4487ba9bdca408fddcee7a08a6ea18fe767cd0a1d83e6a1008c |
+| Block | `5068907` (verified via Blockfrost) |
+| Fee | `178833` lovelace |
+| Metadata (label 674) | confirmed on-chain — tag `LAB3_GODOT_CARDANO_TESTNET`, project `LAB3 Godot Cardano Testnet`, quest_id `quest_001` |
+
+> TX #5 was produced by the **current** code (new product naming) through the
+> hosted bridge — identical to the flow a browser visitor performs.
+
+> Five independent runs confirm the flow **repeats without failure**.
 
 ## Metadata verified on-chain (TX #1)
 

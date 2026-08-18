@@ -60,7 +60,7 @@ workflow. No hashes on this page are fabricated.
 ## How it works (10-second version)
 
 ```
-Browser:  Godot Web  ──reads (Blockfrost)──►  Cardano Preprod
+Browser:  Godot Web  ──reads (hosted bridge)──►  Cardano Preprod
              │  POST /api/quest/complete
              ▼
 Hosted bridge (Vercel, Node.js + Mesh SDK)  ──signs + submits──►  Cardano Preprod
@@ -74,6 +74,52 @@ Desktop:   Godot  ──reads (Koios)──►  Cardano Preprod
 Godot initiates the workflow; the bridge performs the signing (native Godot cannot
 reach browser CIP-30 wallets). Full detail:
 [docs/architecture.md](docs/architecture.md).
+
+---
+
+## Architecture (renders on GitHub)
+
+```mermaid
+flowchart LR
+    subgraph Client["Godot 4 (GDScript)"]
+        UI["UI: player profile · network status · balance · quest · proof"]
+        LOG["Log console + confirmation polling"]
+    end
+
+    subgraph Reads["Live Cardano reads (real data)"]
+        K["Koios (desktop)<br/>https://preprod.koios.rest/api/v1"]
+        B["Hosted bridge proxies reads (web)<br/>/api/tip · /api/address_info · /api/tx_info"]
+    end
+
+    subgraph Bridge["Signing bridge (Node.js + Mesh SDK)"]
+        V["Vercel prod: https://lab3-godot-cardano-bridge.vercel.app<br/>env: NETWORK=preprod · PROVIDER=blockfrost · MNEMONIC"]
+        T["Build · sign tx · embed metadata (label 674)"]
+    end
+
+    subgraph Chain["Cardano Preprod (public testnet)"]
+        C["Wallet + transaction + confirmation"]
+    end
+
+    UI --> K
+    UI --> B
+    UI -- "POST /api/quest/complete (questId, playerAddress)" --> V
+    V --> T --> C
+    K --> C
+    B --> K
+```
+
+**Flow (as executed on 2026-08-17):**
+1. Godot queries the chain tip → shows `preprod` + live tip height.
+2. User pastes a testnet address → live balance in tADA (Koios / hosted bridge).
+3. User clicks **Complete Quest** → quest flag set locally.
+4. User clicks **Submit Testnet Proof** → `POST /api/quest/complete` on the bridge.
+5. Bridge builds a tx with metadata (label 674), signs with the testnet wallet,
+   submits to Preprod, returns the **tx hash**.
+6. Godot polls the tx status every 3 s until it is in a block.
+7. Godot shows **CONFIRMED (block height …)** and opens the explorer.
+
+> Desktop reads via Koios; browser reads via the hosted bridge (CORS). Submissions
+> always go through the bridge — Godot never holds the mnemonic.
 
 ---
 

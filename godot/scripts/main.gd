@@ -1,19 +1,22 @@
 extends Control
 ## LAB3 Godot x Cardano Testnet Demo
 ##
-## A minimal but real Godot 4 application that:
-##   1. Reads live Cardano testnet (Preprod/Preview) data via public APIs.
+## A Godot 4 application that:
+##   1. Reads LIVE Cardano testnet (Preprod) data from public APIs.
 ##   2. Lets the player complete a quest.
 ##   3. Submits a REAL testnet transaction (metadata under label 674) through the
 ##      signing bridge (backend/) — Godot initiates the flow, the bridge signs
 ##      with a funded testnet wallet and submits on-chain.
 ##   4. Polls the chain until the transaction is confirmed and opens the explorer.
 ##
-## All data is REAL and read live from the Cardano Preprod network.
+## All data is REAL and read live from the Cardano Preprod network — there is no
+## simulated or offline path in this app.
+##
 ## Read source is chosen automatically:
-##   - Desktop build -> Koios public API (no key).
-##   - Web (browser) build -> Blockfrost (CORS-enabled) using a public Preprod
-##     demo key; submissions go to the hosted bridge (Vercel).
+##   - Desktop build -> Koios public API (https://preprod.koios.rest/api/v1).
+##   - Web (browser) build -> the hosted bridge
+##     (https://lab3-godot-cardano-bridge.vercel.app), which proxies the same
+##     live reads with CORS enabled.
 
 # ---------------------------------------------------------------------------
 # Configuration (override via OS environment variables where noted)
@@ -21,15 +24,9 @@ extends Control
 const BRIDGE_URL_LOCAL := "http://127.0.0.1:8787"  # desktop/local dev
 const BRIDGE_URL_HOSTED := "https://lab3-godot-cardano-bridge.vercel.app"  # web build
 const KOIOS_URL_DEFAULT := "https://preprod.koios.rest/api/v1"
-const BLOCKFROST_URL_DEFAULT := "https://cardano-preprod.blockfrost.io/api/v0"
-# Public Preprod demo key. Used only by browser builds to read live testnet data
-# (no hosted backend needed for reads). Preprod keys are free, public, testnet-only.
-const BLOCKFROST_KEY_DEFAULT := "preprodGeW2TyWcjdJO6tUubKgqORmqsdwX9v7A"
 const NETWORK_DEFAULT := "preprod"
 const EXPLORER_DEFAULT := "https://preprod.cardanoscan.io/transaction"
 const QUEST_ID_DEFAULT := "demo_001"
-# Set true to route web reads through the hosted bridge instead of Blockfrost.
-const FORCE_BRIDGE_READS := false
 
 const POLL_INTERVAL_SECONDS := 3.0
 const MAX_POLLS := 20
@@ -42,12 +39,10 @@ const COLOR_INFO := Color("#a5b4fc")
 
 var bridge_url: String
 var koios_url: String
-var blockfrost_url: String
-var blockfrost_key: String
 var network_name: String
 var explorer_base: String
 var quest_id: String
-var read_mode := "koios"  # "koios" | "blockfrost" | "bridge"
+var read_mode := "koios"  # "koios" (desktop) | "bridge" (web)
 
 var quest_completed := false
 var tx_hash := ""
@@ -78,15 +73,10 @@ func _load_config() -> void:
 	var on_web := OS.has_feature("web")
 	bridge_url = _env_or("LAB3_BRIDGE_URL", BRIDGE_URL_HOSTED if on_web else BRIDGE_URL_LOCAL)
 	koios_url = _env_or("LAB3_KOIOS_URL", KOIOS_URL_DEFAULT)
-	blockfrost_url = _env_or("LAB3_BLOCKFROST_URL", BLOCKFROST_URL_DEFAULT)
-	blockfrost_key = _env_or("LAB3_BLOCKFROST_KEY", BLOCKFROST_KEY_DEFAULT)
 	network_name = _env_or("LAB3_NETWORK", NETWORK_DEFAULT)
 	explorer_base = _env_or("LAB3_EXPLORER", EXPLORER_DEFAULT)
 	quest_id = _env_or("LAB3_QUEST_ID", QUEST_ID_DEFAULT)
-	if on_web:
-		read_mode = "bridge" if FORCE_BRIDGE_READS else "blockfrost"
-	else:
-		read_mode = "koios"
+	read_mode = "bridge" if on_web else "koios"
 
 func _env_or(key: String, fallback: String) -> String:
 	var v := OS.get_environment(key)
@@ -263,40 +253,28 @@ func _set_ui_status(key: String, text: String, color: Color) -> void:
 	ui[key].add_theme_color_override("font_color", color)
 
 # ---------------------------------------------------------------------------
-# Live Cardano reads (real data)
+# Live Cardano reads (real data, no simulated path)
 # ---------------------------------------------------------------------------
 func _request_tip() -> void:
-	if read_mode == "blockfrost":
-		http_tip.request(blockfrost_url + "/block/latest", ["project_id: " + blockfrost_key], HTTPClient.METHOD_GET)
-	elif read_mode == "bridge":
+	if read_mode == "bridge":
 		http_tip.request(bridge_url + "/api/tip", [], HTTPClient.METHOD_GET)
 	else:
 		http_tip.request(koios_url + "/tip", [], HTTPClient.METHOD_GET)
 
 func _request_address(addr: String) -> void:
-	if read_mode == "blockfrost":
-		var url := blockfrost_url + "/addresses/" + addr.uri_encode()
-		http_addr.request(url, ["project_id: " + blockfrost_key], HTTPClient.METHOD_GET)
-	elif read_mode == "bridge":
-		var payload := JSON.stringify({"_addresses": [addr]})
-		var headers := ["Content-Type: application/json"]
+	var payload := JSON.stringify({"_addresses": [addr]})
+	var headers := ["Content-Type: application/json"]
+	if read_mode == "bridge":
 		http_addr.request(bridge_url + "/api/address_info", headers, HTTPClient.METHOD_POST, payload)
 	else:
-		var payload := JSON.stringify({"_addresses": [addr]})
-		var headers := ["Content-Type: application/json"]
 		http_addr.request(koios_url + "/address_info", headers, HTTPClient.METHOD_POST, payload)
 
 func _request_tx_status() -> void:
-	if read_mode == "blockfrost":
-		var url := blockfrost_url + "/txs/" + tx_hash
-		http_tx.request(url, ["project_id: " + blockfrost_key], HTTPClient.METHOD_GET)
-	elif read_mode == "bridge":
-		var payload := JSON.stringify({"_tx_hashes": [tx_hash]})
-		var headers := ["Content-Type: application/json"]
+	var payload := JSON.stringify({"_tx_hashes": [tx_hash]})
+	var headers := ["Content-Type: application/json"]
+	if read_mode == "bridge":
 		http_tx.request(bridge_url + "/api/tx_info", headers, HTTPClient.METHOD_POST, payload)
 	else:
-		var payload := JSON.stringify({"_tx_hashes": [tx_hash]})
-		var headers := ["Content-Type: application/json"]
 		http_tx.request(koios_url + "/tx_info", headers, HTTPClient.METHOD_POST, payload)
 
 func _refresh_data() -> void:
@@ -441,10 +419,6 @@ func _on_tx_done(result: int, response_code: int, _headers: PackedStringArray, b
 		_log("Status request failed — will retry.", COLOR_WARN)
 		_set_ui_status("submit_status", "pending (%d/%d) — retrying…" % [poll_count, MAX_POLLS], COLOR_WARN)
 		poll_timer.start(POLL_INTERVAL_SECONDS)
-		return
-	# Blockfrost returns 404 until the tx is in a block.
-	if read_mode == "blockfrost" and response_code == 404:
-		_handle_tx_info(-1)
 		return
 	if response_code != 200:
 		_log("Status request failed (HTTP %d) — will retry." % response_code, COLOR_WARN)

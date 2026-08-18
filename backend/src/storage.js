@@ -29,6 +29,86 @@ export async function ensureSchema() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS presence (
+        address TEXT PRIMARY KEY,
+        name TEXT NOT NULL DEFAULT '',
+        x REAL NOT NULL DEFAULT 0,
+        y REAL NOT NULL DEFAULT 0,
+        level INT NOT NULL DEFAULT 1,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chat (
+        id BIGSERIAL PRIMARY KEY,
+        sender TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+  } finally {
+    client.release();
+  }
+}
+
+export async function savePresence({ address, name, x, y, level }) {
+  if (!isEnabled()) return { stored: false, reason: 'database not configured' };
+  await ensureSchema();
+  const client = await getPool().connect();
+  try {
+    await client.query(
+      `INSERT INTO presence (address, name, x, y, level, updated_at)
+       VALUES ($1, $2, $3, $4, $5, now())
+       ON CONFLICT (address) DO UPDATE SET name = EXCLUDED.name, x = EXCLUDED.x, y = EXCLUDED.y, level = EXCLUDED.level, updated_at = now()`,
+      [address, name, x, y, level],
+    );
+    return { stored: true };
+  } finally {
+    client.release();
+  }
+}
+
+export async function getPresence(withinSeconds = 20) {
+  if (!isEnabled()) return [];
+  await ensureSchema();
+  const client = await getPool().connect();
+  try {
+    const r = await client.query(
+      `SELECT address, name, x, y, level FROM presence WHERE updated_at > now() - make_interval(secs => $1)`,
+      [withinSeconds],
+    );
+    return r.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export async function addChatMessage(sender, text) {
+  if (!isEnabled()) return { stored: false, reason: 'database not configured' };
+  await ensureSchema();
+  const client = await getPool().connect();
+  try {
+    await client.query(
+      `INSERT INTO chat (sender, text) VALUES ($1, $2)`,
+      [sender, text],
+    );
+    return { stored: true };
+  } finally {
+    client.release();
+  }
+}
+
+export async function getChatMessages(limit = 40) {
+  if (!isEnabled()) return [];
+  await ensureSchema();
+  const client = await getPool().connect();
+  try {
+    const r = await client.query(
+      `SELECT sender, text, created_at FROM chat ORDER BY id DESC LIMIT $1`,
+      [limit],
+    );
+    return r.rows.reverse();
   } finally {
     client.release();
   }

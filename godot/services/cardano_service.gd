@@ -59,3 +59,15 @@ func save_player(address: String, data: Dictionary, cb: Callable) -> void:
 
 func load_player(address: String, cb: Callable) -> void:
 	get_json("/api/player/" + address, cb)
+
+func send_presence(address: String, name: String, x: float, y: float, level: int, cb: Callable) -> void:
+	post("/api/presence", { "address": address, "name": name, "x": x, "y": y, "level": level }, cb)
+
+func fetch_presence(cb: Callable) -> void:
+	get_json("/api/presence", cb)
+
+func send_chat(sender: String, text: String, cb: Callable) -> void:
+	post("/api/chat", { "sender": sender, "text": text }, cb)
+
+func fetch_chat(cb: Callable) -> void:
+	get_json("/api/chat", cb)

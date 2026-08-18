@@ -4,8 +4,8 @@ extends Control
 
 const QUEST_NAMES := [
 	"Quest 1: Collect 5 Coins",
-	"Quest 2: Activate 2 Terminals",
-	"Quest 3: Reach the Exit",
+	"Quest 2: Defeat 3 Monsters",
+	"Quest 3: Reach the Village Gate",
 ]
 const QUEST_IDS := ["quest_1", "quest_2", "quest_3"]
 
@@ -43,6 +43,8 @@ func _ensure_input() -> void:
 	_add_key("ui_right", KEY_D)
 	_add_key("ui_up", KEY_W)
 	_add_key("ui_accept", KEY_SPACE)
+	_add_key("skill_1", KEY_J)
+	_add_key("skill_2", KEY_K)
 
 func _add_key(action: String, key: Key) -> void:
 	if not InputMap.has_action(action):
@@ -185,10 +187,40 @@ func _build_play() -> void:
 	h.add_child(ui.play_quest)
 	ui.play_progress = _label("", 14, COLOR_INFO)
 	h.add_child(ui.play_progress)
+	ui.inventory = _label("", 14, COLOR_INFO)
+	h.add_child(ui.inventory)
 	h.add_child(Label.new())
-	var back := _button("Exit to Menu", func(): _stop_run())
+	var back := _button("Menu", func(): _stop_run())
 	back.size_flags_horizontal = Control.SIZE_SHRINK_END
 	h.add_child(back)
+	# online chat
+	var chat_box := VBoxContainer.new()
+	chat_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	chat_box.offset_left = 12
+	chat_box.offset_bottom = -12
+	chat_box.offset_right = 420
+	chat_box.custom_minimum_size.y = 190
+	chat_box.add_theme_constant_override("separation", 4)
+	s.add_child(chat_box)
+	ui.chat = RichTextLabel.new()
+	ui.chat.bbcode_enabled = true
+	ui.chat.scroll_active = true
+	ui.chat.custom_minimum_size.y = 150
+	chat_box.add_child(ui.chat)
+	var chat_row := HBoxContainer.new()
+	ui.chat_input = LineEdit.new()
+	ui.chat_input.placeholder_text = "Chat (Enter to send)"
+	ui.chat_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui.chat_input.text_submitted.connect(_send_chat)
+	chat_row.add_child(ui.chat_input)
+	var send := _button("Send", func(): _send_chat(ui.chat_input.text))
+	chat_row.add_child(send)
+	chat_box.add_child(chat_row)
+	ui.info_label = _label("Click a player to view their profile", 13, COLOR_INFO)
+	s.add_child(ui.info_label)
+	ui.info_label.anchors_preset = Control.PRESET_BOTTOM_RIGHT
+	ui.info_label.offset_right = -12
+	ui.info_label.offset_bottom = -8
 
 func _build_verify() -> void:
 	var s := _screen("verify")
@@ -355,22 +387,36 @@ func _in_play() -> void:
 	world = preload("res://game/world.gd").new()
 	add_child(world)
 	world.coins_collected.connect(_on_coins)
-	world.terminals_activated.connect(_on_terminals)
-	world.exit_reached.connect(_on_exit)
+	world.monsters_killed.connect(_on_monsters)
+	world.gate_reached.connect(_on_gate)
 	world.player_damaged.connect(_on_player_damaged)
+	world.player_clicked.connect(_on_player_clicked)
 	_update_quest_hud()
+	if ui.chat != null:
+		ui.chat.clear()
+	_chat_timer = Timer.new()
+	_chat_timer.wait_time = 3.0
+	_chat_timer.timeout.connect(_poll_chat)
+	add_child(_chat_timer)
+	_chat_timer.start()
+	_poll_chat()
 
 func _stop_run() -> void:
 	if world != null:
 		world.queue_free()
 		world = null
+	if _chat_timer != null:
+		_chat_timer.stop()
+		_chat_timer.queue_free()
+		_chat_timer = null
 	_show_screen("menu")
 	_apply_profile_to_ui()
 
 func _update_quest_hud() -> void:
 	ui.play_quest.text = QUEST_NAMES[current_quest]
 	if world != null:
-		ui.play_progress.text = "Coins %d/%d   Terminals %d/%d" % [8 - int(world.coins_left), 8, 2 - int(world.terminals_left), 2]
+		ui.play_progress.text = "Coins %d/%d   Monsters %d/%d" % [8 - int(world.coins_left), 8, 3 - int(world.monsters_left), 3]
+		ui.inventory.text = "Inv: Coins %d  Kills %d  |  J: Slash  K: Fireball" % [profile.fragments, profile.terminals]
 
 func _on_coins(n: int) -> void:
 	var collected := 8 - n
@@ -380,20 +426,68 @@ func _on_coins(n: int) -> void:
 	else:
 		_update_quest_hud()
 
-func _on_terminals(n: int) -> void:
-	var activated := 2 - n
-	profile.terminals = maxi(profile.terminals, activated)
-	if current_quest == 1 and activated >= 2:
+func _on_monsters(n: int) -> void:
+	var killed := 3 - n
+	profile.terminals = maxi(profile.terminals, killed)
+	if current_quest == 1 and killed >= 3:
 		_complete_quest(1)
 	else:
 		_update_quest_hud()
 
-func _on_exit() -> void:
+func _on_gate() -> void:
 	if current_quest == 2:
 		_complete_quest(2)
 
 func _on_player_damaged() -> void:
 	world.reset_player()
+
+func _on_player_clicked(address: String, name: String) -> void:
+	ui.info_label.text = "Loading %s profile..." % name
+	ui.info_label.add_theme_color_override("font_color", COLOR_WARN)
+	cardano_service.load_player(address, func(result: int, code: int, data):
+		if result == HTTPRequest.RESULT_SUCCESS and code == 200 and data is Dictionary:
+			var d = data.get("data")
+			if d != null:
+				var q: Dictionary = d.get("quests", {})
+				var q1 = q.get("quest_1", false)
+				var q2 = q.get("quest_2", false)
+				var q3 = q.get("quest_3", false)
+				ui.info_label.text = "%s  |  Lv %d  XP %d  |  Q1:%s Q2:%s Q3:%s" % [name, int(d.get("level", 1)), int(d.get("xp", 0)), str(q1), str(q2), str(q3)]
+				ui.info_label.add_theme_color_override("font_color", COLOR_OK)
+			else:
+				ui.info_label.text = "%s - new player (no data yet)" % name
+				ui.info_label.add_theme_color_override("font_color", COLOR_WARN)
+		else:
+			ui.info_label.text = "Could not load %s profile" % name
+			ui.info_label.add_theme_color_override("font_color", COLOR_ERR)
+	)
+
+var _chat_timer: Timer
+
+func _poll_chat() -> void:
+	cardano_service.fetch_chat(_cb_chat)
+
+func _cb_chat(result: int, code: int, data) -> void:
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200 or data == null or not data.get("ok", false):
+		return
+	var msgs = data.get("messages", [])
+	ui.chat.clear()
+	for m in msgs:
+		ui.chat.append_text("[color=#7dd3fc]%s:[/color] %s\n" % [str(m.get("sender", "?")), str(m.get("text", ""))])
+
+func _send_chat(text: String) -> void:
+	var t := text.strip_edges()
+	if t == "":
+		ui.chat_input.text = ""
+		return
+	var sender := profile.player_name
+	if sender == "":
+		sender = "Guest"
+	if profile.address != "":
+		sender += " (" + profile.address.substr(0, 6) + ")"
+	cardano_service.send_chat(sender, t, func(_r: int, _c: int, _d): pass)
+	ui.chat_input.text = ""
+	_poll_chat()
 
 func _complete_quest(index: int) -> void:
 	quest_state.milestone_reached = true

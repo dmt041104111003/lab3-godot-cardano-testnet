@@ -11,7 +11,7 @@ import {
   getOnChainAnchor,
   prepareAttestation,
 } from './cip0170.js';
-import { savePlayer, loadPlayer, ensureSchema } from './storage.js';
+import { savePlayer, loadPlayer, ensureSchema, savePresence, getPresence, addChatMessage, getChatMessages } from './storage.js';
 
 validateConfig();
 ensureSchema().catch((err) => console.error('[storage] schema init failed:', err.message));
@@ -132,6 +132,54 @@ app.get('/api/player/:address', async (req, res) => {
   try {
     const data = await loadPlayer(req.params.address);
     res.json({ ok: true, data });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Online world: presence + chat (shared via Postgres)
+app.post('/api/presence', async (req, res) => {
+  try {
+    const { address, name, x, y, level } = req.body || {};
+    if (!address || typeof address !== 'string' || address.length < 40) {
+      return res.status(400).json({ ok: false, error: 'a valid address is required' });
+    }
+    const result = await savePresence({ address, name: String(name || ''), x: Number(x || 0), y: Number(y || 0), level: Number(level || 1) });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/presence', async (_req, res) => {
+  try {
+    const rows = await getPresence();
+    res.json({ ok: true, players: rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { sender, text } = req.body || {};
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'text is required' });
+    }
+    if (String(text).length > 500) {
+      return res.status(400).json({ ok: false, error: 'text too long' });
+    }
+    const result = await addChatMessage(String(sender || 'Guest').slice(0, 60), text.slice(0, 500));
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/chat', async (_req, res) => {
+  try {
+    const rows = await getChatMessages();
+    res.json({ ok: true, messages: rows });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

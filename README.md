@@ -19,8 +19,11 @@ integration will build on. It is **not** the CIP-0170 integration itself.
 
 ## ⛔ What it does NOT prove
 
-> The prototype does not yet implement CIP-0170. CIP-0170 is the next
-> integration step that will build on this validated Godot × Cardano baseline.
+> The prototype does not yet implement the full CIP-0170 on-chain identity spec.
+> CIP-0170 is the **new integration** built on this baseline — the core of the
+> Catalyst Pilot. A working CIP-0170 attestation layer is implemented and tested
+> on Preprod (see [docs/cip-0170.md](docs/cip-0170.md)); mainnet deployment is the
+> Pilot milestone.
 
 ---
 
@@ -51,6 +54,48 @@ datum — viewable as an NFT in any Cardano explorer. Confirmed on Preprod:
 - Latest mint (hosted bridge): `02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7`
   https://preprod.cardanoscan.io/transaction/02b603705215753102d39667dff8305abdd5226b0e7887965ca3ad3810dbcef7
 - In the app: complete a quest, then click **Mint Achievement NFT**.
+
+## 🪪 CIP-0170 — on-chain identity & attestation (new integration)
+
+The Pilot's new integration. A player links their profile to a Cardano wallet;
+when a qualifying milestone occurs, the backend validates the event and issues a
+**signed VerifiableCredential attestation** (issuer = KERI-style AID) that is
+**anchored on-chain** (metadata label 1701). Godot then verifies the on-chain
+anchor + issuer signature before showing the achievement as **verified**.
+
+Confirmed on Preprod (create v1 + update v2 + a hosted-bridge create) with
+`verified: true` — see [docs/cip-0170.md](docs/cip-0170.md).
+
+```mermaid
+flowchart LR
+    subgraph G["Godot (off-chain game state)"]
+        P["Player profile + wallet address"]
+        Q["Complete Quest → milestone"]
+        D["Show VERIFIED achievement"]
+    end
+    subgraph B["Backend / bridge (validation + attestation)"]
+        V["Validate milestone"]
+        A["Issue signed VC attestation<br/>KERI AID issuer + CIP-8 signature"]
+        AN["Anchor: metadata label 1701<br/>attestationHash · status · version"]
+    end
+    subgraph C["Cardano (transaction evidence)"]
+        TX["Confirmed transaction"]
+        M["On-chain anchor = source of truth"]
+    end
+    P --> Q --> V --> A --> AN --> TX --> M
+    M -. verify hash + signature .-> D
+```
+
+**In the app:** click **Register Identity** → **Attest Achievement** (tx anchored)
+→ **Verify On-Chain** (shows `VERIFIED ✓`).
+
+## Identity & attestation states (separated)
+
+1. **Off-chain game state** — player profile linked to the wallet.
+2. **CIP-0170 attestation** — signed W3C VerifiableCredential (issued/updated).
+3. **Cardano transaction evidence** — on-chain anchor (label 1701), source of truth.
+
+Full details: [docs/cip-0170.md](docs/cip-0170.md).
 
 ## Verify it yourself — live, right now
 
@@ -144,6 +189,7 @@ flowchart LR
 ├── .gitignore
 ├── docs/
 │   ├── architecture.md       ← system design, data flow, live deployment
+│   ├── cip-0170.md           ← CIP-0170 identity & attestation (new integration)
 │   ├── testnet-validation.md ← REAL executed transactions on Preprod + reproduction
 │   ├── evidence.md           ← validation & evidence checklist
 │   └── live-demo.md          ← deployment guide (GitHub Pages + Vercel bridge)
@@ -335,6 +381,7 @@ curl -s -X POST https://preprod.koios.rest/api/v1/tx_info \
 ## Docs
 
 - [architecture.md](docs/architecture.md) — system design & data flow
+- [cip-0170.md](docs/cip-0170.md) — CIP-0170 identity & attestation (new integration)
 - [testnet-validation.md](docs/testnet-validation.md) — real Preprod transactions
 - [evidence.md](docs/evidence.md) — validation & evidence checklist
 - [live-demo.md](docs/live-demo.md) — deployment guide (GitHub Pages + Vercel bridge)

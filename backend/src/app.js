@@ -2,6 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import { config, validateConfig } from './config.js';
 import { submitProof, txStatus, koiosJson, mintAchievement } from './cardano.js';
+import {
+  registerPlayer,
+  createAttestation,
+  updateAttestation,
+  verifyAttestation,
+  getAttestationRecord,
+  getOnChainAnchor,
+} from './cip0170.js';
 
 validateConfig();
 
@@ -85,6 +93,67 @@ app.get('/api/tx/:hash', async (req, res) => {
   try {
     const result = await txStatus(req.params.hash);
     res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// CIP-0170 — on-chain identity & attestation
+// ---------------------------------------------------------------------------
+app.post('/api/player/register', (req, res) => {
+  try {
+    const { playerAddress, playerName } = req.body || {};
+    const result = registerPlayer({ playerAddress, playerName });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/attestation/create', async (req, res) => {
+  try {
+    const { playerAddress, playerName, achievement, event, questId, tier, progression } = req.body || {};
+    if (!achievement || typeof achievement !== 'string') {
+      return res.status(400).json({ ok: false, error: 'achievement (string) is required' });
+    }
+    const result = await createAttestation({ playerAddress, playerName, achievement, event, questId, tier, progression });
+    res.json(result);
+  } catch (err) {
+    console.error('[attest] failed:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/attestation/update', async (req, res) => {
+  try {
+    const { playerAddress, playerName, achievement, event, questId, tier, progression } = req.body || {};
+    if (!achievement || typeof achievement !== 'string') {
+      return res.status(400).json({ ok: false, error: 'achievement (string) is required' });
+    }
+    const result = await updateAttestation({ playerAddress, playerName, achievement, event, questId, tier, progression });
+    res.json(result);
+  } catch (err) {
+    console.error('[attest-update] failed:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/attestation/verify', async (req, res) => {
+  try {
+    const { txHash, attestation, signature, key, issuerAddr } = req.body || {};
+    if (!txHash) return res.status(400).json({ ok: false, error: 'txHash is required' });
+    const result = await verifyAttestation({ txHash, attestation, signature, key, issuerAddr });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/attestation/onchain/:txHash', async (req, res) => {
+  try {
+    const anchor = await getOnChainAnchor(req.params.txHash);
+    res.json({ ok: true, anchor });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

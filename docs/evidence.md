@@ -56,8 +56,12 @@ Full details (block heights, fees, inputs/outputs, metadata) are in
 | 6 | Transaction #3 hash | ✅ | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` |
 | 7 | Transaction #4 hash (hosted bridge) | ✅ | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` |
 | 8 | Hosted bridge URL | ✅ | `https://lab3-godot-cardano-bridge.vercel.app` |
-| 9 | Date tested | ✅ | 2026-08-17 |
+| 9 | Date tested | ✅ | 2026-08-17 (baseline) / 2026-08-18 (CIP-0170) |
 | 10 | Exact gameplay flow | ✅ | below |
+| 11 | CIP-0170 create v1 | ✅ | `cff3a0ea4e6fd13cf926c9c16b2072726d64871fa948206aedbae93337d85873` (block 5069691) |
+| 12 | CIP-0170 update v2 | ✅ | `f1bb626b31b98db84dcd95fdc969c3e8d2f8d13b6ccbeb37833b70b81f33b338` (block 5069692) |
+| 13 | CIP-0170 hosted-bridge create | ✅ | `359f1a6034aefe1353a31d8a31f17305bc4595d3bb56216344320a061e63c321` |
+| 14 | CIP-0170 verification | ✅ | `verified: true` (hash match + CIP-8 signature) |
 
 ## Exact gameplay flow (as executed)
 

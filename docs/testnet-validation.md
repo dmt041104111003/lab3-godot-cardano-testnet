@@ -95,6 +95,21 @@ inline datum. Explorers show these as NFTs in the wallet.
 
 > Five independent runs confirm the flow **repeats without failure**.
 
+### CIP-0170 — attestation anchoring (create/update/verify)
+
+Real attestations anchored on-chain under metadata **label 1701** (issuer
+`E-yF6PV8jfWhJIZyDJexKkzE38BsZMW01D6I9S2sWQw0`), each verified with `verified: true`
+(hash match + CIP-8 signature valid).
+
+| Action | Tx hash | Status / Version | Block |
+| ------ | ------- | ---------------- | ----- |
+| create v1 | `cff3a0ea4e6fd13cf926c9c16b2072726d64871fa948206aedbae93337d85873` | created / 1 | 5069691 |
+| update v2 | `f1bb626b31b98db84dcd95fdc969c3e8d2f8d13b6ccbeb37833b70b81f33b338` | updated / 2 | 5069692 |
+| create (hosted bridge) | `359f1a6034aefe1353a31d8a31f17305bc4595d3bb56216344320a061e63c321` | created / 1 | — |
+
+- Explorer: https://preprod.cardanoscan.io/transaction/cff3a0ea4e6fd13cf926c9c16b2072726d64871fa948206aedbae93337d85873
+- Full flow + verification details: [cip-0170.md](cip-0170.md).
+
 ## Metadata verified on-chain (TX #1)
 
 Queried from Blockfrost `GET /txs/{hash}/metadata`:

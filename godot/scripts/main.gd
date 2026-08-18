@@ -45,17 +45,23 @@ var quest_id: String
 var read_mode := "koios"  # "koios" (desktop) | "bridge" (web)
 
 var quest_completed := false
+var identity_registered := false
 var tx_hash := ""
 var poll_count := 0
 var polling := false
 var submitting := false
 var minting := false
+var attesting := false
+var last_attestation := {}  # attestation + signature from create/update, for verify
 
 var http_tip: HTTPRequest
 var http_addr: HTTPRequest
 var http_submit: HTTPRequest
 var http_mint: HTTPRequest
 var http_tx: HTTPRequest
+var http_reg: HTTPRequest
+var http_attest: HTTPRequest
+var http_verify: HTTPRequest
 var poll_timer: Timer
 
 var ui := {}
@@ -252,6 +258,42 @@ func _build_ui() -> void:
 
 	vbox.add_child(_hr())
 
+	# ---- CIP-0170 identity & attestation ----
+	vbox.add_child(_section("IDENTITY & ATTESTATION (CIP-0170)"))
+	var cip170_row := _row()
+	var reg_btn := Button.new()
+	reg_btn.text = "Register Identity"
+	reg_btn.pressed.connect(_on_register_pressed)
+	ui.reg_btn = reg_btn
+	cip170_row.add_child(reg_btn)
+	ui.reg_status = _label("Link wallet to a player profile", 13, COLOR_WARN)
+	cip170_row.add_child(ui.reg_status)
+	vbox.add_child(cip170_row)
+
+	var attest_row := _row()
+	var attest_btn := Button.new()
+	attest_btn.text = "Attest Achievement"
+	attest_btn.disabled = true
+	attest_btn.pressed.connect(_on_attest_pressed)
+	ui.attest_btn = attest_btn
+	attest_row.add_child(attest_btn)
+	var verify_btn := Button.new()
+	verify_btn.text = "Verify On-Chain"
+	verify_btn.disabled = true
+	verify_btn.pressed.connect(_on_verify_pressed)
+	ui.verify_btn = verify_btn
+	attest_row.add_child(verify_btn)
+	vbox.add_child(attest_row)
+
+	ui.cip_status = _label("Not registered", 13, COLOR_WARN)
+	vbox.add_child(ui.cip_status)
+	ui.cip_hash = _label("Attestation hash: —", 13, COLOR_INFO)
+	vbox.add_child(ui.cip_hash)
+	ui.cip_aid = _label("Issuer AID: —", 13, COLOR_INFO)
+	vbox.add_child(ui.cip_aid)
+
+	vbox.add_child(_hr())
+
 	# ---- Log console ----
 	vbox.add_child(_section("LOG"))
 	ui.log = RichTextLabel.new()
@@ -267,13 +309,19 @@ func _build_ui() -> void:
 	http_submit = HTTPRequest.new()
 	http_mint = HTTPRequest.new()
 	http_tx = HTTPRequest.new()
-	for h in [http_tip, http_addr, http_submit, http_mint, http_tx]:
+	http_reg = HTTPRequest.new()
+	http_attest = HTTPRequest.new()
+	http_verify = HTTPRequest.new()
+	for h in [http_tip, http_addr, http_submit, http_mint, http_tx, http_reg, http_attest, http_verify]:
 		add_child(h)
 	http_tip.request_completed.connect(_on_tip_done)
 	http_addr.request_completed.connect(_on_addr_done)
 	http_submit.request_completed.connect(_on_submit_done)
 	http_mint.request_completed.connect(_on_mint_done)
 	http_tx.request_completed.connect(_on_tx_done)
+	http_reg.request_completed.connect(_on_reg_done)
+	http_attest.request_completed.connect(_on_attest_done)
+	http_verify.request_completed.connect(_on_verify_done)
 
 	poll_timer = Timer.new()
 	poll_timer.wait_time = POLL_INTERVAL_SECONDS
@@ -508,6 +556,119 @@ func _on_mint_done(result: int, response_code: int, _headers: PackedStringArray,
 	poll_count = 0
 	polling = true
 	poll_timer.start(POLL_INTERVAL_SECONDS)
+
+# ---------------------------------------------------------------------------
+# CIP-0170 — identity & attestation
+# ---------------------------------------------------------------------------
+func _on_register_pressed() -> void:
+	var addr := _address()
+	if addr == "":
+		_set_ui_status("reg_status", "enter an address first", COLOR_ERR)
+		return
+	_log("Registering player identity linked to %s…" % addr, COLOR_INFO)
+	ui.reg_btn.disabled = true
+	_set_ui_status("reg_status", "registering…", COLOR_WARN)
+	var payload := JSON.stringify({"playerAddress": addr, "playerName": "Player One"})
+	var headers := ["Content-Type: application/json"]
+	http_reg.request(bridge_url + "/api/player/register", headers, HTTPClient.METHOD_POST, payload)
+
+func _on_reg_done(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	ui.reg_btn.disabled = false
+	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		_set_ui_status("reg_status", "register failed", COLOR_ERR)
+		return
+	var data = JSON.parse_string(body.get_string_from_utf8())
+	if data == null or not data.get("ok", false):
+		_set_ui_status("reg_status", "register failed", COLOR_ERR)
+		return
+	identity_registered = true
+	_set_ui_status("reg_status", "Identity linked to wallet ✓", COLOR_OK)
+	_log("Player identity registered on bridge (off-chain state).", COLOR_OK)
+	ui.attest_btn.disabled = false
+
+func _on_attest_pressed() -> void:
+	if attesting:
+		return
+	var addr := _address()
+	if addr == "":
+		_set_ui_status("cip_status", "enter an address first", COLOR_ERR)
+		return
+	attesting = true
+	ui.attest_btn.disabled = true
+	_set_ui_status("cip_status", "creating CIP-0170 attestation…", COLOR_WARN)
+	_log("Creating CIP-0170 attestation for %s…" % quest_id, COLOR_INFO)
+	var payload := JSON.stringify({
+		"playerAddress": addr,
+		"playerName": "Player One",
+		"achievement": quest_id,
+		"event": "quest_completed",
+		"questId": quest_id,
+		"tier": 1,
+		"progression": "achievement",
+	})
+	var headers := ["Content-Type: application/json"]
+	http_attest.request(bridge_url + "/api/attestation/create", headers, HTTPClient.METHOD_POST, payload)
+
+func _on_attest_done(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	attesting = false
+	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		_set_ui_status("cip_status", "attestation failed", COLOR_ERR)
+		ui.attest_btn.disabled = false
+		return
+	var data = JSON.parse_string(body.get_string_from_utf8())
+	if data == null or not data.get("ok", false):
+		_set_ui_status("cip_status", "attestation failed", COLOR_ERR)
+		ui.attest_btn.disabled = false
+		return
+	last_attestation = data
+	tx_hash = str(data.get("txHash", ""))
+	ui.cip_hash.text = "Attestation hash: " + str(data.get("attestationHash", "")).substr(0, 24) + "…"
+	ui.cip_hash.add_theme_color_override("font_color", COLOR_OK)
+	ui.cip_aid.text = "Issuer AID: " + str(data.get("issuerAid", ""))
+	ui.cip_aid.add_theme_color_override("font_color", COLOR_INFO)
+	_set_ui_status("cip_status", "Attestation %s (v%s) ✓ — awaiting confirm" % [data.get("status", "?"), data.get("version", "?")], COLOR_OK)
+	ui.tx_hash_label.text = "Transaction hash: " + tx_hash
+	ui.tx_hash_label.add_theme_color_override("font_color", COLOR_OK)
+	ui.explorer_btn.disabled = false
+	ui.verify_btn.disabled = false
+	_log("CIP-0170 attestation submitted. Tx: %s" % tx_hash, COLOR_OK)
+	_set_ui_status("submit_status", "submitted — awaiting confirmation", COLOR_WARN)
+	poll_count = 0
+	polling = true
+	poll_timer.start(POLL_INTERVAL_SECONDS)
+
+func _on_verify_pressed() -> void:
+	if last_attestation.is_empty():
+		_set_ui_status("cip_status", "attest first", COLOR_ERR)
+		return
+	_set_ui_status("cip_status", "verifying on-chain…", COLOR_WARN)
+	ui.verify_btn.disabled = true
+	_log("Verifying attestation against on-chain anchor…", COLOR_INFO)
+	var payload := JSON.stringify({
+		"txHash": last_attestation.get("txHash", ""),
+		"attestation": last_attestation.get("attestation", {}),
+		"signature": last_attestation.get("signature", ""),
+		"key": last_attestation.get("verificationKey", ""),
+		"issuerAddr": last_attestation.get("issuerAddr", ""),
+	})
+	var headers := ["Content-Type: application/json"]
+	http_verify.request(bridge_url + "/api/attestation/verify", headers, HTTPClient.METHOD_POST, payload)
+
+func _on_verify_done(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	ui.verify_btn.disabled = false
+	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		_set_ui_status("cip_status", "verify failed", COLOR_ERR)
+		return
+	var data = JSON.parse_string(body.get_string_from_utf8())
+	if data == null:
+		_set_ui_status("cip_status", "verify failed", COLOR_ERR)
+		return
+	if data.get("verified", false):
+		_set_ui_status("cip_status", "VERIFIED ✓ (on-chain anchor + signature)", COLOR_OK)
+		_log("CIP-0170 attestation VERIFIED on-chain.", COLOR_OK)
+	else:
+		_set_ui_status("cip_status", "not verified — " + str(data.get("reason", "")), COLOR_ERR)
+		_log("Verification failed: %s" % str(data.get("reason", "")), COLOR_ERR)
 
 # ---------------------------------------------------------------------------
 # Confirmation polling (real on-chain reads)

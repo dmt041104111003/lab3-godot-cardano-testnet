@@ -59,7 +59,7 @@ this prototype. No transaction hash on this page is fabricated.
 
 > TX #4 proves the **hosted bridge** (`https://lab3-godot-cardano-bridge.vercel.app`)
 > signs and submits real Preprod transactions — the same endpoint the browser
-> live demo uses.
+> web build uses.
 
 > Four independent runs confirm the flow **repeats without failure**.
 

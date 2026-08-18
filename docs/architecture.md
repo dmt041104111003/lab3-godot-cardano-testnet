@@ -45,7 +45,7 @@ signing key somewhere. The solution is a **bridge service** that:
 
 ## Live deployment (production)
 
-- **Web demo (frontend):** Godot HTML5 export served by **GitHub Pages**
+- **Web build (frontend):** Godot HTML5 export served by **GitHub Pages**
   (`https://dmt041104111003.github.io/lab3-godot-cardano-testnet/`).
 - **Bridge (backend):** deployed on **Vercel** (production)
   `https://lab3-godot-cardano-bridge.vercel.app` with env vars:

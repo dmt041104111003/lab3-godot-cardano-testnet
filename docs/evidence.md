@@ -50,16 +50,14 @@ Full details (block heights, fees, inputs/outputs, metadata) are in
 | - | ---- | ------ | ------------ |
 | 1 | Repository URL | ✅ | `https://github.com/dmt041104111003/lab3-godot-cardano-testnet` |
 | 2 | Tagged release / commit | ⏳ | add a `v1.0.0` tag and record the commit hash |
-| 3 | Godot screenshots | ⏳ | add to `docs/screenshots/` and link |
-| 4 | Demo video URL | ⏳ | record per `docs/demo-video-script.md` |
-| 5 | Cardano network | ✅ | **Preprod** |
-| 6 | Transaction #1 hash | ✅ | `30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162` |
-| 7 | Transaction #2 hash | ✅ | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` |
-| 8 | Transaction #3 hash | ✅ | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` |
-| 9 | Transaction #4 hash (hosted bridge) | ✅ | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` |
-| 10 | Hosted bridge URL | ✅ | `https://lab3-godot-cardano-bridge.vercel.app` |
-| 10 | Date tested | ✅ | 2026-08-17 |
-| 11 | Exact gameplay flow | ✅ | below |
+| 3 | Cardano network | ✅ | **Preprod** |
+| 4 | Transaction #1 hash | ✅ | `30219e447faf3a89784c73f27916ee15882bdd7575478152a0d01500173e8162` |
+| 5 | Transaction #2 hash | ✅ | `4a4b87a9e9b398526308c2c7ba239d0e185f0857bd22935dfae5e6d5bb00e501` |
+| 6 | Transaction #3 hash | ✅ | `7b07014ddd39cd56abfaaefa8663c2dcde0b10a0930e0724ed937eb6364b4120` |
+| 7 | Transaction #4 hash (hosted bridge) | ✅ | `73aa0613c47b890de10c51849322ae25afb78c718e9f2cc8b54eb18578b415c4` |
+| 8 | Hosted bridge URL | ✅ | `https://lab3-godot-cardano-bridge.vercel.app` |
+| 9 | Date tested | ✅ | 2026-08-17 |
+| 10 | Exact gameplay flow | ✅ | below |
 
 ## Exact gameplay flow (as executed)
 

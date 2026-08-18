@@ -40,18 +40,17 @@ Both transactions carry metadata under **label 674** with tag
 
 ## Verify it yourself — live, right now
 
-1. **Live demo (web)** — open the browser build (GitHub Pages) and test it:
+1. **Web build (browser)** — open the GitHub Pages build and run a real test:
    paste any `addr_test1…` address → balance shows; click **Complete Quest** →
    **Submit Testnet Proof** → a real Preprod transaction is signed by the hosted
-   bridge and confirmed on-chain, then the hash appears in the game.
+   bridge and confirmed on-chain, then the hash appears in the app.
 2. **Hosted bridge** — `https://lab3-godot-cardano-bridge.vercel.app/health`
    (live on Vercel; `/api/tip`, `/api/address_info`, `/api/quest/complete`).
 3. **On-chain proof** — the real Preprod transactions below, openable in any
    Cardano explorer (metadata label 674, tag `LAB3_GODOT_CARDANO_TRL5_DEMO`).
 
-> Every number you see in the app is fetched live from Cardano Preprod — nothing
-> is simulated. A demo video is optional; the live demo + explorer links are the
-> primary proof.
+> Every number in the app is fetched live from Cardano Preprod — nothing is
+> simulated. The web build + explorer links are the primary proof.
 
 ---
 
@@ -85,11 +84,9 @@ reach browser CIP-30 wallets). Full detail:
 ├── .gitignore
 ├── docs/
 │   ├── architecture.md       ← system design, data flow, live deployment
-│   ├── testnet-validation.md ← REAL executed transactions + how to reproduce
+│   ├── testnet-validation.md ← REAL executed transactions on Preprod + reproduction
 │   ├── evidence.md           ← validation & evidence checklist
-│   ├── live-demo.md          ← Godot Web export + GitHub Pages deployment
-│   ├── demo-video-script.md  ← optional 60–90 s demo video script
-│   └── trl5-evidence.md      ← ready-to-paste TRL5 wording (fill demo URL)
+│   └── live-demo.md          ← deployment guide (GitHub Pages + Vercel bridge)
 ├── godot/
 │   ├── project.godot
 │   ├── export_presets.cfg    ← Web (HTML5) export preset
@@ -261,7 +258,7 @@ curl -s -X POST https://preprod.koios.rest/api/v1/tx_info \
 
 ## For reviewers — quick verification
 
-1. Open the live demo (GitHub Pages URL) in a browser.
+1. Open the web build (GitHub Pages URL) in a browser.
 2. Paste the bridge wallet address
    `addr_test1qp6el7vnjgr2gqd5m7dcz92uw5pwqaddpp520jgy3xvd9l4fg96w0twerwjcahs5djhttqgj5slgt9yd6xftgecum22qraq6v4`
    → the balance shows live tADA from Preprod.
@@ -278,11 +275,9 @@ curl -s -X POST https://preprod.koios.rest/api/v1/tx_info \
 ## Docs
 
 - [architecture.md](docs/architecture.md) — system design & data flow
-- [testnet-validation.md](docs/testnet-validation.md) — real executed transactions
+- [testnet-validation.md](docs/testnet-validation.md) — real Preprod transactions
 - [evidence.md](docs/evidence.md) — validation & evidence checklist
-- [live-demo.md](docs/live-demo.md) — Godot Web export + GitHub Pages deployment
-- [demo-video-script.md](docs/demo-video-script.md) — optional demo video script
-- [trl5-evidence.md](docs/trl5-evidence.md) — ready-to-paste TRL5 wording
+- [live-demo.md](docs/live-demo.md) — deployment guide (GitHub Pages + Vercel bridge)
 
 ## License
 

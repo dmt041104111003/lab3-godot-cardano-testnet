@@ -1,144 +1,77 @@
-# Live Demo — Web Deployment
+# Deployment — GitHub Pages (web build) + Vercel (bridge)
 
-The best way for anyone (curators, developers) to verify this project is the
-**trio**:
+This project runs in two parts, both already deployed for production:
 
-1. **GitHub repo** — full source, docs, and evidence.
-   https://github.com/dmt041104111003/lab3-godot-cardano-testnet
-2. **Live demo (web)** — a browser playable build of the Godot app (HTML5 export)
-   deployed on GitHub Pages / Netlify / Vercel.
-3. **Public testnet transaction** — a Cardanoscan Preprod/Preprod link proving the
-   on-chain interaction is real.
+| Part | Where | URL |
+| ---- | ----- | --- |
+| Godot web build | GitHub Pages (`gh-pages` branch) | `https://dmt041104111003.github.io/lab3-godot-cardano-testnet/` |
+| Signing bridge | Vercel (production) | `https://lab3-godot-cardano-bridge.vercel.app` |
 
-> The explorer link is the most important proof. The live demo lets a reviewer
-> open the app directly and test it themselves.
+## Current state
 
-## Current status
+- [x] Bridge deployed on Vercel with env vars:
+      `NETWORK=preprod`, `PROVIDER=blockfrost`, `BLOCKFROST_API_KEY`, `MNEMONIC`.
+- [x] Real Preprod transactions submitted through the hosted bridge
+      (see [testnet-validation.md](testnet-validation.md), TX #4).
+- [ ] Enable GitHub Pages: `Settings → Pages → Deploy from a branch →
+      gh-pages → / (root) → Save`.
 
-- [x] Godot web build committed to the **`gh-pages` branch** (root).
-- [x] `master` branch contains the full source + docs + evidence.
-- [x] **Bridge deployed to Vercel (production):**
-      `https://lab3-godot-cardano-bridge.vercel.app` — env vars (NETWORK=preprod,
-      PROVIDER=blockfrost, BLOCKFROST_API_KEY, MNEMONIC) configured. Submissions
-      from the web demo are real, signed on Preprod, and confirmed on-chain.
-- [ ] **One manual step:** enable GitHub Pages on the repo:
-      `Settings → Pages → Deploy from a branch → branch: gh-pages → / (root) → Save`.
-      URL will be: `https://dmt041104111003.github.io/lab3-godot-cardano-testnet/`
+## How the browser build talks to Cardano
 
-## What the browser build can do
+- **Reads:** the web build reads live Preprod data directly from **Blockfrost**
+  (CORS-enabled, public Preprod key embedded in the build).
+- **Submissions:** `POST /api/quest/complete` goes to the hosted bridge, which
+  signs with the testnet wallet (mnemonic only in Vercel env vars) and submits
+  on-chain. Visitors need zero local setup.
+- Godot detects the browser via `OS.has_feature("web")` and switches the bridge
+  URL automatically. Desktop builds read from Koios and submit to
+  `http://127.0.0.1:8787` or the hosted bridge.
 
-The web build reads live Preprod data directly from **Blockfrost** (CORS-enabled,
-using a public Preprod demo key embedded in the build). Submissions go to the
-hosted bridge above — so **the live demo is fully functional end-to-end**, no
-local setup needed for visitors.
+## Quick check (no setup)
 
-Quick check: `curl https://lab3-godot-cardano-bridge.vercel.app/health`
-
-## How the web build talks to Cardano
-
-Browser builds cannot call Koios directly (Koios sends no
-`Access-Control-Allow-Origin` header), so the web build routes **all reads and
-submissions** through the CORS-enabled bridge:
-
-```
-Godot Web (browser)  ──►  hosted bridge (CORS)  ──►  Cardano Preprod
-   GET  /api/tip            (Node.js + Mesh SDK)
-   POST /api/address_info       │ reads  → Koios
-   POST /api/tx_info            │ submit → Blockfrost/Koios
-   POST /api/quest/complete
+```bash
+curl https://lab3-godot-cardano-bridge.vercel.app/health
+curl https://lab3-godot-cardano-bridge.vercel.app/api/tip
 ```
 
-Godot detects the web build automatically (`OS.has_feature("web")`) and switches
-the read URLs to the bridge endpoints (`/api/tip`, `/api/address_info`,
-`/api/tx_info`). Desktop builds keep talking to Koios directly.
+## Redeploying the bridge (if you change the backend)
 
-## Step 1 — Export the Godot project for Web
-
-1. Install Godot 4.x and open `godot/project.godot`.
-2. Install the **Web export templates**: Editor → `Editor > Manage Export Templates`
-   → download/install the templates for your Godot version.
-3. `Project > Export…` → the `Web` preset (from `godot/export_presets.cfg`)
-   should be listed. If not, click **Add** → **Web**.
-4. Set **Export Path** to `build/web/index.html`.
-5. Click **Export Project** → produces `build/web/` (`index.html`, `index.js`,
-   `index.wasm`, `*.pck`).
-
-## Step 2 — Host the bridge publicly
-
-The demo needs a reachable bridge. Example: **Render.com** free tier.
-
-1. Push the `backend/` folder to a new repo (or the same repo root).
-2. Create a new **Web Service** on Render → pick the repo, root = `backend/`.
-3. Build command: `npm install`
-   Start command: `node src/server.js`
-4. Add environment variables:
-   - `NETWORK=preprod`
-   - `PROVIDER=blockfrost`
-   - `BLOCKFROST_API_KEY=<preprod key>`
-   - `MNEMONIC=<demo wallet mnemonic>`
-   - `PORT=10000`
-5. Render gives you a public URL, e.g. `https://lab3-bridge.onrender.com`.
-   > Use a **dedicated demo wallet** funded only with tADA. The mnemonic on a
-   > hosted service is exposed to whoever controls that service — never reuse a
-   > wallet you care about, and never use mainnet funds.
-
-## Step 3 — Deploy the web build
-
-### GitHub Pages
-
-1. In the repo: `Settings → Pages → Source → GitHub Actions`.
-2. Create `.github/workflows/deploy-web.yml`:
-
-```yaml
-name: Deploy Godot Web
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deploy static build
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./godot/build/web
+```bash
+cd backend
+vercel link --yes --project lab3-godot-cardano-bridge   # once
+vercel env add NETWORK production                       # as needed
+vercel env add PROVIDER production
+vercel env add BLOCKFROST_API_KEY production
+vercel env add MNEMONIC production
+vercel deploy --prod --yes
 ```
 
-3. Add the built `godot/build/web/` files to the repo (or build them in CI and
-   adjust the workflow).
+## Rebuilding + redeploying the web build
 
-### Netlify / Vercel (alternative)
+1. Open `godot/project.godot` in Godot 4.x (install the Web export templates:
+   `Editor → Manage Export Templates`).
+2. `Project → Export…` → preset **Web** → Export to `godot/build/web/index.html`.
+3. Commit `godot/build/web/` on `master`, then rebuild the `gh-pages` branch with
+   only those files and force-push:
 
-- Netlify: drag-and-drop the `godot/build/web/` folder to
-  https://app.netlify.com/drop → instant URL.
-- Vercel: `vercel deploy --prod` pointing at `godot/build/web/`.
-
-## Step 4 — Point Godot at the hosted bridge
-
-In `godot/scripts/main.gd`, set the bridge URL (or provide it at runtime via the
-`LAB3_BRIDGE_URL` OS environment variable):
-
-```gdscript
-const BRIDGE_URL_DEFAULT := "https://lab3-bridge.onrender.com"
+```bash
+git checkout gh-pages
+git rm -rf .
+cp godot/build/web/* .
+git add -A && git commit -m "Update web build"
+git push -f origin gh-pages
+git checkout master
 ```
 
-Rebuild the web export and redeploy. Desktop builds can keep
-`http://127.0.0.1:8787` for local use.
+> Keep the `gh-pages` branch limited to the web build files. The branch has a
+> `.gitignore` that blocks `.env` and `node_modules` from ever being committed.
 
-## Verification checklist for the live demo
+## Verification checklist (real test on Preprod)
 
-- [ ] Live URL loads in a normal browser (no console CORS errors).
-- [ ] Network row shows `preprod` and a live tip height.
-- [ ] Pasting the demo wallet address shows a non-zero tADA balance.
-- [ ] Complete Quest → Submit Testnet Proof returns a real tx hash.
+- [ ] Open the GitHub Pages URL in a browser — network row shows `preprod` + a live tip height.
+- [ ] Paste the bridge wallet address → non-zero tADA balance from Preprod.
+- [ ] **Complete Quest** → **Submit Testnet Proof** → a real tx hash is returned.
 - [ ] Status flips to **CONFIRMED (block height …)** and the explorer link opens.
-
-## Keep the evidence consistent
-
-Whenever you demonstrate the live demo, submit a fresh transaction and record it
-in [docs/testnet-validation.md](testnet-validation.md) and
-[docs/evidence.md](evidence.md) so the explorer link always reflects a real,
-recent interaction.
+- [ ] The hash is findable on `preprod.cardanoscan.io` with metadata label 674.
+- [ ] Record every fresh transaction in [testnet-validation.md](testnet-validation.md)
+      so the evidence always reflects a real, recent interaction.

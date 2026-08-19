@@ -153,7 +153,12 @@ func _ready() -> void:
 	fence_tex = _safe_tex("res://assets/house/walls_floor.png")
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
 	custom_slash_tex = _safe_tex("res://assets/local_pack/skills/arc_slash.png")
-	_build_cached_skill_resources()
+	# Load the two primary skills before the first frame; defer the larger
+	# secondary VFX sheets so entering the world is not blocked by dozens of
+	# texture imports. Remaining skills are ready moments later and are still
+	# loaded from the same cached SpriteFrames resources.
+	_build_primary_skill_resources()
+	call_deferred("_build_secondary_skill_resources")
 	chest_tex = _safe_tex("res://assets/local_pack/world/chest.png")
 	hero_idle_tex = _safe_tex("res://assets/local_pack/characters/hero_idle.png")
 	for i in range(4):
@@ -622,6 +627,8 @@ func _handle_skills() -> void:
 		try_cast_skill(6)
 
 func try_cast_skill(index: int) -> bool:
+	if index >= 3 and skill_thunder == null:
+		_build_secondary_skill_resources()
 	if index == 1 and skill1_cd <= 0.0:
 		skill1_cd = 0.45
 		player.show_attack(0.18)
@@ -883,9 +890,17 @@ func _update_camera_shake(delta: float) -> void:
 	cam.offset = Vector2(randf_range(-shake_strength, shake_strength), randf_range(-shake_strength, shake_strength))
 
 func _build_cached_skill_resources() -> void:
+	_build_primary_skill_resources()
+	_build_secondary_skill_resources()
+
+func _build_primary_skill_resources() -> void:
 	light_texture = _make_radial_light_texture()
 	skill_water_spell = _load_skill_frames("res://assets/vfx_skill/water_spell", "Water Spell_Frame_", 8, 24.0)
 	skill_fire_spell = _load_skill_frames("res://assets/vfx_skill/fire_spell", "Fire Spell_Frame_", 8, 24.0)
+
+func _build_secondary_skill_resources() -> void:
+	if skill_thunder != null:
+		return
 	skill_water_ball = _load_skill_frames("res://assets/vfx_skill/water_ball", "Water Ball_Frame_", 12, 20.0)
 	skill_fire_ball = _load_skill_frames("res://assets/vfx_skill/fire_ball", "Fire Ball_Frame_", 8, 20.0)
 	skill_fire_arrow = _load_skill_frames("res://assets/vfx_skill/fire_arrow", "Fire Arrow_Frame_", 8, 24.0)

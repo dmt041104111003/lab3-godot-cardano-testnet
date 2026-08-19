@@ -42,15 +42,22 @@ export const config = {
   explorerUrl: (txHash) => `${explorerBase}/${txHash}`,
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'https://lab3-godot-cardano-bridge.vercel.app/api/auth/callback/google',
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'https://backend-smoky-six-67.vercel.app/api/auth/callback/google',
   googleFrontendUrl: process.env.GOOGLE_FRONTEND_URL || 'https://vercel-game-alpha.vercel.app',
 };
 
 export function validateConfig() {
   if (!mnemonic.length || mnemonic.length < 15) {
-    throw new Error(
-      'MNEMONIC is missing or too short. Copy .env.example to .env and set MNEMONIC. Generate one with: npm run key',
-    );
+    // OAuth, health and read-only endpoints can run without the server
+    // signing wallet. Keep the Vercel function alive and let only the
+    // transaction handlers report a missing signing configuration.
+    if (process.env.VERCEL || process.env.VERCEL_ENV) {
+      console.warn('[config] MNEMONIC is not configured; Cardano signing endpoints are disabled');
+    } else {
+      throw new Error(
+        'MNEMONIC is missing or too short. Copy .env.example to .env and set MNEMONIC. Generate one with: npm run key',
+      );
+    }
   }
   if (provider === 'blockfrost' && !config.blockfrostApiKey) {
     throw new Error('PROVIDER=blockfrost requires BLOCKFROST_API_KEY in .env');

@@ -5,7 +5,7 @@ $env:LOCALAPPDATA = Join-Path $root '.tools\appdata'
 $env:npm_config_cache = Join-Path $root '.tools\npm-cache'
 
 Write-Host 'Linking backend Vercel project (choose/create the backend project when prompted)...' -ForegroundColor Cyan
-npx.cmd --yes vercel@50.14.0 link --cwd (Join-Path $root 'backend')
+npx.cmd --yes vercel@50.14.0 link --cwd (Join-Path $root 'backend') --yes
 
 $oauthFile = Join-Path $root '.google-oauth.local'
 $oauth = @{}
@@ -24,7 +24,7 @@ try {
   $vars = @{
     GOOGLE_CLIENT_ID = $clientId
     GOOGLE_CLIENT_SECRET = $secretPlain
-    GOOGLE_REDIRECT_URI = if ($oauth['GOOGLE_REDIRECT_URI']) { $oauth['GOOGLE_REDIRECT_URI'] } else { 'https://lab3-godot-cardano-bridge.vercel.app/api/auth/callback/google' }
+    GOOGLE_REDIRECT_URI = if ($oauth['GOOGLE_REDIRECT_URI']) { $oauth['GOOGLE_REDIRECT_URI'] } else { 'https://backend-smoky-six-67.vercel.app/api/auth/callback/google' }
     GOOGLE_FRONTEND_URL = if ($oauth['GOOGLE_FRONTEND_URL']) { $oauth['GOOGLE_FRONTEND_URL'] } else { 'https://vercel-game-alpha.vercel.app' }
   }
   foreach ($name in $vars.Keys) {
@@ -42,13 +42,18 @@ try {
   $secretPlain = $null
 }
 
-Push-Location $root
+$stage = Join-Path $root '.vercel-backend-stage'
+if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+New-Item -ItemType Directory -Path (Join-Path $stage 'backend') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $stage '.vercel') -Force | Out-Null
+Copy-Item -Path (Join-Path $root '.vercel\project.json') -Destination (Join-Path $stage '.vercel\project.json') -Force
+Copy-Item -Path (Join-Path $root 'backend\*') -Destination (Join-Path $stage 'backend') -Recurse -Force
+Push-Location $stage
 try {
-  # The Vercel project itself already has Root Directory=backend. Deploy
-  # from the repository root so the CLI does not resolve backend/backend.
   npx.cmd --yes vercel@50.14.0 deploy --prod --yes --archive=tgz
   if ($LASTEXITCODE -ne 0) { throw 'Backend deploy failed' }
 } finally {
   Pop-Location
+  Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
 }
 Write-Host 'Google OAuth backend deployed.' -ForegroundColor Green

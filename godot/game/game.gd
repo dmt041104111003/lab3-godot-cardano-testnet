@@ -643,7 +643,7 @@ func _login_google() -> void:
 	if not OS.has_feature("web"):
 		_set_label(ui, "profile_msg", "Google login is available in the Web build.", COLOR_WARN)
 		return
-	var bridge := "https://lab3-godot-cardano-bridge.vercel.app"
+	var bridge := "https://backend-smoky-six-67.vercel.app"
 	JavaScriptBridge.eval("window.location.href=" + JSON.stringify(bridge + "/api/auth/google"))
 
 func _poll_google_login() -> void:

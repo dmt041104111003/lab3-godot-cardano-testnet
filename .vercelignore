@@ -1,0 +1,20 @@
+# This Vercel project is the Cardano/Google backend. Exclude the Godot
+# asset library and local tooling when deploying from the repository root.
+.deploy/
+.git/
+.git-write/
+.tools/
+.vercel/
+assets/
+da/
+docs/
+enemy/
+godot/
+hanhtrang/
+house/
+map_trees/
+new_enemy/
+quai_vat/
+skill/
+trees/
+vfx_skill/

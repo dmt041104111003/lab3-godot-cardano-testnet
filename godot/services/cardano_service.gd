@@ -8,7 +8,7 @@ var explorer_base := "https://preprod.cardanoscan.io/transaction"
 
 func _ready() -> void:
 	if OS.has_feature("web"):
-		bridge_url = "https://lab3-godot-cardano-bridge.vercel.app"
+		bridge_url = "https://backend-smoky-six-67.vercel.app"
 	# Allow an OS-level override for desktop/local testing.
 	var v := OS.get_environment("LAB3_BRIDGE_URL")
 	if v != "":

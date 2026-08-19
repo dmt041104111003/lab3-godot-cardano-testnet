@@ -299,41 +299,57 @@ func _update_light() -> void:
 # Skills
 # ---------------------------------------------------------------------------
 func _handle_skills() -> void:
-	if Input.is_action_just_pressed("skill_1") and skill1_cd <= 0.0:
+	if Input.is_action_just_pressed("skill_1"):
+		try_cast_skill(1)
+	if Input.is_action_just_pressed("skill_2"):
+		try_cast_skill(2)
+
+func try_cast_skill(index: int) -> bool:
+	if index == 1 and skill1_cd <= 0.0:
 		skill1_cd = 1.0
 		_cast_slash()
-	if Input.is_action_just_pressed("skill_2") and skill2_cd <= 0.0:
+		return true
+	if index == 2 and skill2_cd <= 0.0:
 		skill2_cd = 2.0
 		_cast_fireball()
+		return true
+	return false
 
 func _cast_slash() -> void:
 	var dir: Vector2 = player.facing
 	var start: Vector2 = player.position + dir * 40
 	var end: Vector2 = player.position + dir * 260
-	var wave := _spawn_vfx(0, start + dir * 55, 0.18)
-	wave.rotation = dir.angle()
-	wave.modulate = Color(0.65, 1.0, 1.0, 0.95)
-	_spawn_particles(start, Color(0.4, 0.9, 1.0), 10)
-	_damage_in_rect(Rect2(start.x - 30, start.y - 40, dir.x * 260 + 60, 80), 1)
-	var tw := create_tween()
-	tw.set_parallel(true)
-	tw.tween_property(wave, "position", end, 0.22).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	tw.tween_property(wave, "scale", Vector2(0.24, 0.24), 0.22)
-	tw.tween_property(wave, "modulate:a", 0.0, 0.28)
-	tw.tween_callback(func(): wave.queue_free())
-	_flash(Color(0.25, 0.9, 1.0, 0.045), 0.08)
-	_shake(3.0)
+	for i in range(3):
+		var wave := _spawn_vfx(i, start + dir * (44 + i * 24), 0.12 + i * 0.025)
+		wave.rotation = dir.angle()
+		wave.modulate = Color(0.45 + i * 0.08, 0.92, 1.0, 0.94 - i * 0.12)
+		var tw := create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(wave, "position", end + dir * (i * 18), 0.18 + i * 0.035).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+		tw.tween_property(wave, "scale", Vector2(0.22 + i * 0.025, 0.22 + i * 0.025), 0.22)
+		tw.tween_property(wave, "modulate:a", 0.0, 0.25 + i * 0.04)
+		tw.chain().tween_callback(func(): wave.queue_free())
+	_spawn_particles(start, Color(0.35, 0.92, 1.0), 18, 80.0)
+	_damage_in_direction(player.position, dir, 290.0, 72.0, 1)
+	_flash(Color(0.25, 0.9, 1.0, 0.075), 0.10)
+	_shake(4.0)
 
 func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
 	var node := Node2D.new()
 	var col := _vfx_sprite(2)
-	col.scale = Vector2(1.45, 1.45)
+	col.scale = Vector2(1.75, 1.75)
 	col.rotation = dir.angle()
 	node.add_child(col)
+	var glow := PointLight2D.new()
+	glow.texture = _radial_light_texture()
+	glow.color = Color("#ff8a24")
+	glow.energy = 1.35
+	glow.texture_scale = 0.75
+	node.add_child(glow)
 	var trail := Line2D.new()
-	trail.width = 9
-	trail.default_color = Color(1.0, 0.52, 0.14, 0.55)
+	trail.width = 14
+	trail.default_color = Color(1.0, 0.42, 0.08, 0.72)
 	trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	trail.end_cap_mode = Line2D.LINE_CAP_ROUND
 	trail.points = PackedVector2Array([Vector2.ZERO, -dir * 32])
@@ -365,6 +381,14 @@ func _update_projectiles(delta: float) -> void:
 func _damage_in_rect(rect: Rect2, dmg: int) -> void:
 	for m in monsters.duplicate():
 		if rect.has_point(m.pos):
+			_damage_monster(m, dmg)
+
+func _damage_in_direction(origin: Vector2, dir: Vector2, reach: float, width: float, dmg: int) -> void:
+	for m in monsters.duplicate():
+		var offset: Vector2 = m.pos - origin
+		var forward := offset.dot(dir)
+		var sideways := absf(offset.cross(dir))
+		if forward >= 0.0 and forward <= reach and sideways <= width:
 			_damage_monster(m, dmg)
 
 func _damage_monster(m: Dictionary, dmg: int) -> void:

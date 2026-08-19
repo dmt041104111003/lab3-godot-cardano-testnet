@@ -46,10 +46,12 @@ func _process(_delta: float) -> void:
 		var slash_cd: float = world.skill1_cd
 		ui.skill_slash.text = "READY" if slash_cd <= 0.0 else "%.1fs" % slash_cd
 		ui.skill_slash.modulate = Color.WHITE if slash_cd <= 0.0 else Color(0.55, 0.62, 0.68)
+		ui.skill_slash_card.disabled = slash_cd > 0.0
 	if ui.has("skill_fire"):
 		var fire_cd: float = world.skill2_cd
 		ui.skill_fire.text = "READY" if fire_cd <= 0.0 else "%.1fs" % fire_cd
 		ui.skill_fire.modulate = Color.WHITE if fire_cd <= 0.0 else Color(0.55, 0.62, 0.68)
+		ui.skill_fire_card.disabled = fire_cd > 0.0
 
 func _build_background() -> void:
 	var backdrop := preload("res://ui/starfield.gd").new()
@@ -284,12 +286,14 @@ func _build_play() -> void:
 	skills.offset_bottom = -18
 	skills.add_theme_constant_override("separation", 10)
 	hud_layer.add_child(skills)
-	var slash_card := _skill_card("J", "SLASH", Color("#43d9e6"), load("res://assets/local_pack/ui/skill_slash.png"))
-	var fire_card := _skill_card("K", "FIREBALL", Color("#ff9f43"), load("res://assets/local_pack/ui/skill_fire.png"))
+	var slash_card := _skill_card("J", "SLASH", Color("#43d9e6"), load("res://assets/local_pack/ui/skill_slash.png"), func(): _activate_skill(1))
+	var fire_card := _skill_card("K", "FIREBALL", Color("#ff9f43"), load("res://assets/local_pack/ui/skill_fire.png"), func(): _activate_skill(2))
 	skills.add_child(slash_card.card)
 	skills.add_child(fire_card.card)
 	ui.skill_slash = slash_card.status
 	ui.skill_fire = fire_card.status
+	ui.skill_slash_card = slash_card.card
+	ui.skill_fire_card = fire_card.card
 	var flow := PanelContainer.new()
 	flow.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	flow.offset_left = -510
@@ -300,11 +304,39 @@ func _build_play() -> void:
 	ui.flow_label = _centered_label("PLAY  >  MILESTONE  >  CIP-0170  >  CARDANO", 9, Color("#ffd166"))
 	flow.add_child(ui.flow_label)
 
-func _skill_card(key: String, title: String, accent: Color, icon: Texture2D) -> Dictionary:
-	var card := PanelContainer.new()
+func _skill_card(key: String, title: String, accent: Color, icon: Texture2D, callback: Callable) -> Dictionary:
+	var card := Button.new()
 	card.custom_minimum_size = Vector2(150, 118)
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	card.tooltip_text = title + "  |  Click or press " + key
+	card.pressed.connect(callback)
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.025, 0.06, 0.10, 0.96)
+	normal.border_color = Color(accent, 0.82)
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(14)
+	normal.shadow_color = Color(0, 0, 0, 0.62)
+	normal.shadow_size = 10
+	var hover := normal.duplicate()
+	hover.bg_color = Color(accent, 0.20)
+	hover.border_color = accent
+	hover.set_border_width_all(3)
+	var pressed := hover.duplicate()
+	pressed.bg_color = Color(accent, 0.34)
+	var disabled := normal.duplicate()
+	disabled.bg_color = Color(0.025, 0.04, 0.06, 0.88)
+	disabled.border_color = Color(accent, 0.28)
+	card.add_theme_stylebox_override("normal", normal)
+	card.add_theme_stylebox_override("hover", hover)
+	card.add_theme_stylebox_override("pressed", pressed)
+	card.add_theme_stylebox_override("disabled", disabled)
 	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 12
+	row.offset_top = 10
+	row.offset_right = -10
+	row.offset_bottom = -10
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_theme_constant_override("separation", 8)
 	card.add_child(row)
 	var picture := TextureRect.new()
@@ -312,14 +344,25 @@ func _skill_card(key: String, title: String, accent: Color, icon: Texture2D) -> 
 	picture.custom_minimum_size = Vector2(52, 52)
 	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(picture)
 	var copy := VBoxContainer.new()
+	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(copy)
 	copy.add_child(_label("[" + key + "]", 11, accent))
 	copy.add_child(_label(title, 9, Color.WHITE))
 	var status := _label("READY", 9, Color("#7ef29a"))
 	copy.add_child(status)
 	return { "card": card, "status": status }
+
+func _activate_skill(index: int) -> void:
+	if world == null or not screens["play"].visible:
+		return
+	if world.try_cast_skill(index):
+		var card: Button = ui.skill_slash_card if index == 1 else ui.skill_fire_card
+		var tween := create_tween()
+		tween.tween_property(card, "scale", Vector2(0.92, 0.92), 0.06)
+		tween.tween_property(card, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _build_verify() -> void:
 	var s := _screen("verify")

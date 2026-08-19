@@ -45,6 +45,11 @@ var goblin_run: Array[Texture2D] = []
 var goblin_hurt: Array[Texture2D] = []
 var goblin_attack: Array[Texture2D] = []
 var goblin_dying: Array[Texture2D] = []
+var new_enemy_idle: Array[Texture2D] = []
+var new_enemy_run: Array[Texture2D] = []
+var new_enemy_hurt: Array[Texture2D] = []
+var new_enemy_attack: Array[Texture2D] = []
+var new_enemy_death: Array[Texture2D] = []
 var plant_idle: Array[Texture2D] = []
 var plant_attack: Array[Texture2D] = []
 var plant_dying: Array[Texture2D] = []
@@ -91,6 +96,12 @@ func _safe_tex(path: String) -> Texture2D:
 		t = ImageTexture.create_from_image(img)
 	return t
 
+func _load_enemy_sequence(folder: String, prefix: String, count: int) -> Array[Texture2D]:
+	var frames: Array[Texture2D] = []
+	for i in range(count):
+		frames.append(_safe_tex("res://assets/new_enemy/%s/%s_%03d.png" % [folder, prefix, i]))
+	return frames
+
 func _ready() -> void:
 	coin_tex = _safe_tex("res://assets/local_pack/ui/coin.png")
 	swamp_ground_tex = _safe_tex("res://assets/map_trees/swamp_ground.png")
@@ -106,6 +117,11 @@ func _ready() -> void:
 		plant_idle.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Idle_without_shadow.png" % [kind, kind]))
 		plant_attack.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Attack_without_shadow.png" % [kind, kind]))
 		plant_dying.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Death_without_shadow.png" % [kind, kind]))
+	new_enemy_idle = _load_enemy_sequence("idle", "Front - Idle", 16)
+	new_enemy_run = _load_enemy_sequence("run", "Front - Running", 20)
+	new_enemy_hurt = _load_enemy_sequence("hurt", "Front - Hurt", 10)
+	new_enemy_attack = _load_enemy_sequence("attack", "Front - Attacking", 10)
+	new_enemy_death = _load_enemy_sequence("death", "Dying", 10)
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
 	custom_slash_tex = _safe_tex("res://assets/local_pack/skills/arc_slash.png")
 	_build_cached_skill_resources()
@@ -357,13 +373,11 @@ func _draw() -> void:
 			draw_rect(Rect2(m.pos + Vector2(-28, -94), Vector2(56, 7)), Color(0.05, 0.02, 0.03, 0.9))
 			draw_rect(Rect2(m.pos + Vector2(-27, -93), Vector2(54.0 * plant_hp_ratio, 5)), Color("#ff476f"))
 			continue
-		var texture: Texture2D = goblin_hurt[kind] if hurt else (goblin_run[kind] if m.dir.length() > 0.1 else goblin_idle[kind])
-		var frame_w: int = 192 if texture == goblin_idle[kind] else 240
-		var frame_count: int = maxi(1, texture.get_width() / frame_w)
-		var frame: int = int(time * (12.0 if hurt else 8.0)) % frame_count
+		var sequence: Array[Texture2D] = new_enemy_hurt if hurt else (new_enemy_attack if time < float(m.get("attack_until", 0.0)) else (new_enemy_run if m.dir.length() > 0.1 else new_enemy_idle))
+		var frame: int = int(time * (12.0 if hurt else 8.0)) % sequence.size()
 		if hurt:
 			draw_circle(m.pos - Vector2(0, 34), 48, Color(1.0, 0.35, 0.25, 0.3))
-		draw_texture_rect_region(texture, Rect2(m.pos - Vector2(40, 72), Vector2(80, 80)), Rect2(frame * frame_w, 0, frame_w, frame_w))
+		draw_texture_rect(sequence[frame], Rect2(m.pos - Vector2(40, 72), Vector2(80, 80)), false)
 		var hp_ratio: float = clampf(float(m.get("hp", 1)) / float(m.get("max_hp", 1)), 0.0, 1.0)
 		draw_rect(Rect2(m.pos + Vector2(-28, -86), Vector2(56, 7)), Color(0.05, 0.02, 0.03, 0.9))
 		draw_rect(Rect2(m.pos + Vector2(-27, -85), Vector2(54.0 * hp_ratio, 5)), Color("#ff476f"))
@@ -371,11 +385,14 @@ func _draw() -> void:
 		var alpha := clampf(m.life / 0.55, 0.0, 1.0)
 		var kind: int = int(m.get("kind", 0))
 		var frame := clampi(int((0.55 - m.life) * 18.0), 0, 9)
-		var death_tex: Texture2D = plant_dying[kind] if bool(m.get("plant", false)) else goblin_dying[kind]
+		var death_tex: Texture2D = plant_dying[kind] if bool(m.get("plant", false)) else new_enemy_death[frame]
 		var death_frame_w := 64 if bool(m.get("plant", false)) else 256
-		var death_frames: int = maxi(1, death_tex.get_width() / death_frame_w)
-		var death_frame: int = mini(frame, death_frames - 1)
-		draw_texture_rect_region(death_tex, Rect2(m.pos - Vector2(44, 74), Vector2(88, 88)), Rect2(death_frame * death_frame_w, 0, death_frame_w, death_frame_w), Color(1, 1, 1, alpha))
+		if bool(m.get("plant", false)):
+			var death_frames: int = maxi(1, death_tex.get_width() / death_frame_w)
+			var death_frame: int = mini(frame, death_frames - 1)
+			draw_texture_rect_region(death_tex, Rect2(m.pos - Vector2(44, 74), Vector2(88, 88)), Rect2(death_frame * death_frame_w, 0, death_frame_w, death_frame_w), Color(1, 1, 1, alpha))
+		else:
+			draw_texture_rect(death_tex, Rect2(m.pos - Vector2(40, 72), Vector2(80, 80)), false, Color(1, 1, 1, alpha))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# gate glow
 	draw_circle(gate_position, 30, Color(0.3, 0.9, 0.45, 0.4))

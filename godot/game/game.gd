@@ -280,14 +280,14 @@ func _build_play() -> void:
 	ui.info_label.offset_bottom = -136
 	var skills := HBoxContainer.new()
 	skills.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	skills.offset_left = -330
-	skills.offset_top = -138
+	skills.offset_left = -390
+	skills.offset_top = -148
 	skills.offset_right = -18
 	skills.offset_bottom = -18
 	skills.add_theme_constant_override("separation", 10)
 	hud_layer.add_child(skills)
-	var slash_card := _skill_card("J", "SLASH", Color("#43d9e6"), load("res://assets/local_pack/ui/skill_slash.png"), func(): _activate_skill(1))
-	var fire_card := _skill_card("K", "FIREBALL", Color("#ff9f43"), load("res://assets/local_pack/ui/skill_fire.png"), func(): _activate_skill(2))
+	var slash_card := _skill_card("J", "SPECTRAL SLASH", Color("#35e6ff"), load("res://assets/custom/skills/spectral_slash.png"), func(): _activate_skill(1))
+	var fire_card := _skill_card("K", "INFERNO ORB", Color("#ff7a24"), load("res://assets/custom/skills/inferno_orb.png"), func(): _activate_skill(2))
 	skills.add_child(slash_card.card)
 	skills.add_child(fire_card.card)
 	ui.skill_slash = slash_card.status
@@ -306,7 +306,7 @@ func _build_play() -> void:
 
 func _skill_card(key: String, title: String, accent: Color, icon: Texture2D, callback: Callable) -> Dictionary:
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(150, 118)
+	card.custom_minimum_size = Vector2(185, 128)
 	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	card.tooltip_text = title + "  |  Click or press " + key
 	card.pressed.connect(callback)
@@ -341,7 +341,7 @@ func _skill_card(key: String, title: String, accent: Color, icon: Texture2D, cal
 	card.add_child(row)
 	var picture := TextureRect.new()
 	picture.texture = icon
-	picture.custom_minimum_size = Vector2(52, 52)
+	picture.custom_minimum_size = Vector2(76, 76)
 	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE

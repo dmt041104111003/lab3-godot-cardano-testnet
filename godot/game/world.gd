@@ -38,6 +38,8 @@ var terrain_tex: Texture2D
 var props_tex: Texture2D
 var enemy_tex: Texture2D
 var fire_tex: Texture2D
+var custom_slash_tex: Texture2D
+var custom_fire_tex: Texture2D
 var chest_tex: Texture2D
 var slash_textures: Array[Texture2D] = []
 var hero_idle_tex: Texture2D
@@ -71,6 +73,8 @@ func _ready() -> void:
 	props_tex = _safe_tex("res://assets/local_pack/world/props.png")
 	enemy_tex = _safe_tex("res://assets/local_pack/characters/enemy_walk.png")
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
+	custom_slash_tex = _safe_tex("res://assets/custom/skills/spectral_slash.png")
+	custom_fire_tex = _safe_tex("res://assets/custom/skills/inferno_orb.png")
 	chest_tex = _safe_tex("res://assets/local_pack/world/chest.png")
 	hero_idle_tex = _safe_tex("res://assets/local_pack/characters/hero_idle.png")
 	for i in range(4):
@@ -320,7 +324,7 @@ func _cast_slash() -> void:
 	var start: Vector2 = player.position + dir * 40
 	var end: Vector2 = player.position + dir * 260
 	for i in range(3):
-		var wave := _spawn_vfx(i, start + dir * (44 + i * 24), 0.12 + i * 0.025)
+		var wave := _spawn_custom_vfx(custom_slash_tex, start + dir * (44 + i * 24), 0.22 + i * 0.035)
 		wave.rotation = dir.angle()
 		wave.modulate = Color(0.45 + i * 0.08, 0.92, 1.0, 0.94 - i * 0.12)
 		var tw := create_tween()
@@ -337,8 +341,8 @@ func _cast_slash() -> void:
 func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
 	var node := Node2D.new()
-	var col := _vfx_sprite(2)
-	col.scale = Vector2(1.75, 1.75)
+	var col := _custom_vfx_sprite(custom_fire_tex)
+	col.scale = Vector2(0.34, 0.34)
 	col.rotation = dir.angle()
 	node.add_child(col)
 	var glow := PointLight2D.new()
@@ -424,6 +428,19 @@ func _vfx_sprite(cell: int) -> Sprite2D:
 
 func _spawn_vfx(cell: int, pos: Vector2, effect_scale: float) -> Sprite2D:
 	var sprite := _vfx_sprite(cell)
+	sprite.position = pos
+	sprite.scale = Vector2(effect_scale, effect_scale)
+	add_child(sprite)
+	return sprite
+
+func _custom_vfx_sprite(texture: Texture2D) -> Sprite2D:
+	var sprite := Sprite2D.new()
+	sprite.texture = texture
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	return sprite
+
+func _spawn_custom_vfx(texture: Texture2D, pos: Vector2, effect_scale: float) -> Sprite2D:
+	var sprite := _custom_vfx_sprite(texture)
 	sprite.position = pos
 	sprite.scale = Vector2(effect_scale, effect_scale)
 	add_child(sprite)

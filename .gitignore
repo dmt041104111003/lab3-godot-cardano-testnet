@@ -19,3 +19,4 @@ Thumbs.db
 .vscode/
 *.log
 godot/build/
+.google-oauth.local

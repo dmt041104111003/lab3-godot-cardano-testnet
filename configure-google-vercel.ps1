@@ -7,15 +7,25 @@ $env:npm_config_cache = Join-Path $root '.tools\npm-cache'
 Write-Host 'Linking backend Vercel project (choose/create the backend project when prompted)...' -ForegroundColor Cyan
 npx.cmd --yes vercel@50.14.0 link --cwd (Join-Path $root 'backend')
 
-$clientId = '349745349873-7hgica51fjerubocs9p5g14heutci66h.apps.googleusercontent.com'
-$secret = Read-Host 'Paste a NEW rotated Google client secret (input is hidden)' -AsSecureString
-$secretPlain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret))
+$oauthFile = Join-Path $root '.google-oauth.local'
+$oauth = @{}
+if (Test-Path -LiteralPath $oauthFile) {
+  foreach ($line in Get-Content -LiteralPath $oauthFile) {
+    if ($line -match '^([A-Z0-9_]+)=(.*)$') { $oauth[$Matches[1]] = $Matches[2] }
+  }
+}
+$clientId = if ($oauth['GOOGLE_CLIENT_ID']) { $oauth['GOOGLE_CLIENT_ID'] } else { '349745349873-7hgica51fjerubocs9p5g14heutci66h.apps.googleusercontent.com' }
+$secretPlain = $oauth['GOOGLE_CLIENT_SECRET']
+if ([string]::IsNullOrWhiteSpace($secretPlain)) {
+  $secret = Read-Host 'Paste a NEW rotated Google client secret (input is hidden)' -AsSecureString
+  $secretPlain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret))
+}
 try {
   $vars = @{
     GOOGLE_CLIENT_ID = $clientId
     GOOGLE_CLIENT_SECRET = $secretPlain
-    GOOGLE_REDIRECT_URI = 'https://lab3-godot-cardano-bridge.vercel.app/api/auth/callback/google'
-    GOOGLE_FRONTEND_URL = 'https://vercel-game-alpha.vercel.app'
+    GOOGLE_REDIRECT_URI = if ($oauth['GOOGLE_REDIRECT_URI']) { $oauth['GOOGLE_REDIRECT_URI'] } else { 'https://lab3-godot-cardano-bridge.vercel.app/api/auth/callback/google' }
+    GOOGLE_FRONTEND_URL = if ($oauth['GOOGLE_FRONTEND_URL']) { $oauth['GOOGLE_FRONTEND_URL'] } else { 'https://vercel-game-alpha.vercel.app' }
   }
   foreach ($name in $vars.Keys) {
     Write-Host "Setting $name..." -ForegroundColor DarkCyan

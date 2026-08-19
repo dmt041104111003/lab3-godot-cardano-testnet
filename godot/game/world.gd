@@ -12,7 +12,7 @@ const ARENA_H := 900.0
 const COIN_TOTAL := 8
 const MONSTER_TOTAL := 3
 const CHUNK_SIZE := 512
-const MIN_CHUNK_RADIUS := 2
+const CHUNK_MARGIN := 128.0
 
 var player: CharacterBody2D
 var cam: Camera2D
@@ -51,8 +51,7 @@ var pond_positions: Array[Vector2] = []
 var road_polygon := PackedVector2Array()
 var gate_position := Vector2.ZERO
 var active_chunks := {}
-var current_chunk := Vector2i(999999, 999999)
-var current_chunk_radius := -1
+var current_chunk_bounds := Rect2i(999999, 999999, 0, 0)
 var sign_tex: Texture2D
 var redraw_accum := 0.0
 var projectile_particle_accum := 0.0
@@ -87,7 +86,8 @@ func _ready() -> void:
 	add_child(player)
 	_update_chunks(true)
 	cam = Camera2D.new()
-	cam.position_smoothing_enabled = true
+	# Direct camera tracking keeps keyboard movement crisp in the Web build.
+	cam.position_smoothing_enabled = false
 	player.add_child(cam)
 
 func _process(delta: float) -> void:
@@ -116,16 +116,17 @@ func _build_arena() -> void:
 func _update_chunks(force := false) -> void:
 	if player == null:
 		return
-	var next_chunk := Vector2i(floori(player.position.x / CHUNK_SIZE), floori(player.position.y / CHUNK_SIZE))
 	var view_size := get_viewport_rect().size
-	var chunk_radius := maxi(MIN_CHUNK_RADIUS, ceili(maxf(view_size.x, view_size.y) / (CHUNK_SIZE * 2.0)) + 1)
-	if not force and next_chunk == current_chunk and chunk_radius == current_chunk_radius:
+	var half_view := view_size * 0.5 + Vector2.ONE * CHUNK_MARGIN
+	var min_chunk := Vector2i(floori((player.position.x - half_view.x) / CHUNK_SIZE), floori((player.position.y - half_view.y) / CHUNK_SIZE))
+	var max_chunk := Vector2i(floori((player.position.x + half_view.x) / CHUNK_SIZE), floori((player.position.y + half_view.y) / CHUNK_SIZE))
+	var next_bounds := Rect2i(min_chunk, max_chunk - min_chunk + Vector2i.ONE)
+	if not force and next_bounds == current_chunk_bounds:
 		return
-	current_chunk = next_chunk
-	current_chunk_radius = chunk_radius
+	current_chunk_bounds = next_bounds
 	var needed := {}
-	for x in range(current_chunk.x - chunk_radius, current_chunk.x + chunk_radius + 1):
-		for y in range(current_chunk.y - chunk_radius, current_chunk.y + chunk_radius + 1):
+	for x in range(min_chunk.x, max_chunk.x + 1):
+		for y in range(min_chunk.y, max_chunk.y + 1):
 			var coord := Vector2i(x, y)
 			needed[coord] = true
 			if not active_chunks.has(coord):
@@ -144,18 +145,11 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 	var ponds: Array[Vector2] = []
 	var ruins: Array[Vector2] = []
 	var patches: Array[Vector2] = []
-	var ground_blots: Array[Dictionary] = []
-	for _i in range(6):
-		ground_blots.append({
-			"pos": origin + Vector2(rng.randf_range(-30, CHUNK_SIZE + 30), rng.randf_range(-30, CHUNK_SIZE + 30)),
-			"radius": rng.randf_range(90.0, 190.0),
-			"light": rng.randf_range(-0.018, 0.025),
-		})
-	for _i in range(rng.randi_range(2, 4)):
+	for _i in range(rng.randi_range(1, 2)):
 		var tree_pos := origin + Vector2(rng.randf_range(64, CHUNK_SIZE - 64), rng.randf_range(64, CHUNK_SIZE - 64))
 		if tree_pos.distance_to(Vector2(ARENA_W * 0.5, ARENA_H * 0.5)) > 180.0:
 			trees.append(tree_pos)
-	for _i in range(rng.randi_range(4, 7)):
+	for _i in range(rng.randi_range(2, 4)):
 		flowers.append(origin + Vector2(rng.randf_range(20, CHUNK_SIZE - 20), rng.randf_range(20, CHUNK_SIZE - 20)))
 	for _i in range(rng.randi_range(1, 2)):
 		patches.append(origin + Vector2(rng.randf_range(60, CHUNK_SIZE - 60), rng.randf_range(60, CHUNK_SIZE - 60)))
@@ -163,7 +157,7 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
 	if rng.randf() < 0.05:
 		ruins.append(origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(110, CHUNK_SIZE - 110)))
-	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "ground_blots": ground_blots }
+	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins }
 
 func _generate_map() -> void:
 	# A fresh deterministic layout is created every time World is instantiated.
@@ -222,9 +216,6 @@ func _draw() -> void:
 		# Every chunk shares exactly the same base tone. Overlap by two pixels so
 		# camera filtering and fractional scaling cannot reveal the joins.
 		draw_rect(Rect2(origin - Vector2(2, 2), Vector2(CHUNK_SIZE + 4, CHUNK_SIZE + 4)), Color("#1b472a"))
-		for blot in chunk.ground_blots:
-			var light: float = blot.light
-			draw_circle(blot.pos, blot.radius, Color(0.12 + light, 0.28 + light, 0.15 + light, 0.34))
 		# Terrain atlas is used as sparse ground accents, never wallpapered.
 		for p in chunk.patches:
 			draw_texture_rect_region(terrain_tex, Rect2(p - Vector2(32, 32), Vector2(64, 64)), Rect2(112, 144, 48, 48))
@@ -237,8 +228,8 @@ func _draw() -> void:
 			draw_circle(p, 2.5, Color("#d5e889") if int(p.x + p.y) % 2 == 0 else Color("#f2c879"))
 		for p in chunk.trees:
 			draw_circle(p + Vector2(4, 8), 25, Color(0, 0, 0, 0.16))
-			var tree_variant: int = abs(int(p.x + p.y)) % 3
-			var src: Rect2 = [Rect2(0, 0, 64, 96), Rect2(64, 0, 64, 96), Rect2(128, 64, 64, 64)][tree_variant]
+			var tree_variant: int = abs(int(p.x + p.y)) % 2
+			var src: Rect2 = [Rect2(0, 0, 64, 96), Rect2(64, 0, 64, 96)][tree_variant]
 			draw_texture_rect_region(nature_tex, Rect2(p - Vector2(34, 62), Vector2(68, 96)), src)
 	# Quest actors use the actual repository sprites.
 	for m in monsters:

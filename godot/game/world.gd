@@ -239,6 +239,8 @@ func _draw() -> void:
 	for m in monsters:
 		var frame := int(time * 8.0) % 6
 		var row := 1 if m.dir.x >= 0 else 2
+		if time < float(m.get("hit_until", 0.0)):
+			draw_circle(m.pos - Vector2(0, 18), 25, Color(1.0, 0.92, 0.68, 0.72))
 		draw_texture_rect_region(enemy_tex, Rect2(m.pos - Vector2(28, 46), Vector2(56, 56)), Rect2(frame * 32, row * 32, 32, 32))
 	# gate glow
 	draw_circle(gate_position, 30, Color(0.3, 0.9, 0.45, 0.4))
@@ -323,6 +325,8 @@ func _cast_slash() -> void:
 	var dir: Vector2 = player.facing
 	var start: Vector2 = player.position + dir * 40
 	var end: Vector2 = player.position + dir * 260
+	_spawn_ring(start, Color("#64efff"), 54.0, 0.24, 4.0)
+	_spawn_direction_streak(player.position, dir, 285.0, Color(0.25, 0.92, 1.0, 0.72), 0.18)
 	for i in range(3):
 		var wave := _spawn_custom_vfx(custom_slash_tex, start + dir * (44 + i * 24), 0.22 + i * 0.035)
 		wave.rotation = dir.angle()
@@ -361,6 +365,10 @@ func _cast_fireball() -> void:
 	node.position = player.position + dir * 36
 	add_child(node)
 	projectiles.append({ "node": node, "dir": dir, "speed": 420.0, "life": 1.2 })
+	_spawn_ring(node.position, Color("#ff9a32"), 50.0, 0.30, 5.0)
+	_spawn_particles(node.position, Color("#ffb13b"), 12, 70.0)
+	_flash(Color(1.0, 0.35, 0.05, 0.055), 0.09)
+	_shake(2.5)
 
 func _update_projectiles(delta: float) -> void:
 	projectile_particle_accum += delta
@@ -372,6 +380,9 @@ func _update_projectiles(delta: float) -> void:
 			continue
 		var node: Node2D = p.node
 		node.position += (p.dir as Vector2) * (p.speed as float) * delta
+		node.rotation += delta * 3.5
+		var pulse := 1.0 + sin(time * 18.0) * 0.055
+		node.scale = Vector2(pulse, pulse)
 		for m in monsters.duplicate():
 			if node.position.distance_to(m.pos) < 30:
 				_damage_monster(m, 1)
@@ -397,6 +408,7 @@ func _damage_in_direction(origin: Vector2, dir: Vector2, reach: float, width: fl
 
 func _damage_monster(m: Dictionary, dmg: int) -> void:
 	m.hp -= dmg
+	m.hit_until = time + 0.13
 	_spawn_particles(m.pos, Color(1.0, 0.4, 0.3), 8)
 	_spawn_popup(m.pos, str(dmg), Color(1.0, 0.5, 0.4))
 	var hit := _spawn_vfx(1, m.pos, 0.065)
@@ -449,14 +461,50 @@ func _spawn_custom_vfx(texture: Texture2D, pos: Vector2, effect_scale: float) ->
 func _spawn_impact(pos: Vector2, fiery: bool) -> void:
 	var fx := _spawn_vfx(3 if fiery else 1, pos, 0.055)
 	var impact_color := Color("#ff8a22") if fiery else Color("#52e8ff")
+	_spawn_ring(pos, impact_color, 62.0 if fiery else 48.0, 0.34, 5.0)
+	_spawn_ring(pos, Color(1, 1, 1, 0.82), 34.0, 0.20, 2.5)
 	var tw := create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(fx, "scale", Vector2(0.13, 0.13), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(fx, "modulate:a", 0.0, 0.42).set_delay(0.10)
 	tw.tween_callback(func(): fx.queue_free()).set_delay(0.45)
-	_spawn_particles(pos, impact_color, 6, 120.0)
+	_spawn_particles(pos, impact_color, 16 if fiery else 11, 150.0)
 	_flash(Color(impact_color, 0.035), 0.07)
 	_shake(4.0)
+
+func _spawn_ring(pos: Vector2, color: Color, radius: float, duration: float, width: float) -> void:
+	var ring := Line2D.new()
+	ring.position = pos
+	ring.width = width
+	ring.default_color = color
+	ring.closed = true
+	ring.antialiased = true
+	var points := PackedVector2Array()
+	for i in range(33):
+		var angle := TAU * float(i) / 32.0
+		points.append(Vector2.from_angle(angle) * radius)
+	ring.points = points
+	ring.scale = Vector2(0.28, 0.28)
+	add_child(ring)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector2(1.15, 1.15), duration).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ring, "modulate:a", 0.0, duration).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(func(): ring.queue_free())
+
+func _spawn_direction_streak(pos: Vector2, dir: Vector2, reach: float, color: Color, duration: float) -> void:
+	var streak := Line2D.new()
+	streak.width = 8.0
+	streak.default_color = color
+	streak.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	streak.end_cap_mode = Line2D.LINE_CAP_ROUND
+	streak.points = PackedVector2Array([pos + dir * 25.0, pos + dir * reach])
+	add_child(streak)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(streak, "width", 1.0, duration)
+	tw.tween_property(streak, "modulate:a", 0.0, duration)
+	tw.chain().tween_callback(func(): streak.queue_free())
 
 func _flash(color: Color, duration: float) -> void:
 	var flash := ColorRect.new()

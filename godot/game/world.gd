@@ -40,6 +40,10 @@ var swamp_ground_tex: Texture2D
 var swamp_tree_short_tex: Texture2D
 var swamp_tree_tall_tex: Texture2D
 var enemy_tex: Texture2D
+var goblin_idle: Array[Texture2D] = []
+var goblin_run: Array[Texture2D] = []
+var goblin_hurt: Array[Texture2D] = []
+var goblin_dying: Array[Texture2D] = []
 var fire_tex: Texture2D
 var custom_slash_tex: Texture2D
 var custom_fire_tex: Texture2D
@@ -84,6 +88,11 @@ func _ready() -> void:
 	swamp_tree_short_tex = _safe_tex("res://assets/map_trees/tree_tower_short.png")
 	swamp_tree_tall_tex = _safe_tex("res://assets/map_trees/tree_tower_tall.png")
 	enemy_tex = _safe_tex("res://assets/local_pack/characters/enemy_walk.png")
+	for kind in ["male", "female", "chief"]:
+		goblin_idle.append(_safe_tex("res://assets/quai_vat/%s/Front___Idle.png" % kind))
+		goblin_run.append(_safe_tex("res://assets/quai_vat/%s/Front___Running.png" % kind))
+		goblin_hurt.append(_safe_tex("res://assets/quai_vat/%s/Front___Hurt.png" % kind))
+		goblin_dying.append(_safe_tex("res://assets/quai_vat/%s/Dying.png" % kind))
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
 	custom_slash_tex = _safe_tex("res://assets/local_pack/skills/arc_slash.png")
 	_build_cached_skill_resources()
@@ -204,10 +213,16 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 	var ruins: Array[Vector2] = []
 	var patches: Array[Vector2] = []
 	var houses: Array[Vector2] = []
+	var tree_occupied: Array[Vector2] = []
 	for _i in range(rng.randi_range(1, 2)):
-		var tree_pos := origin + Vector2(rng.randf_range(64, CHUNK_SIZE - 64), rng.randf_range(64, CHUNK_SIZE - 64))
-		if tree_pos.distance_to(Vector2(ARENA_W * 0.5, ARENA_H * 0.5)) > 180.0:
+		var tree_pos := origin + Vector2(rng.randf_range(92, CHUNK_SIZE - 92), rng.randf_range(92, CHUNK_SIZE - 92))
+		var clear := true
+		for other in tree_occupied:
+			if tree_pos.distance_to(other) < 210.0:
+				clear = false
+		if clear and tree_pos.distance_to(Vector2(ARENA_W * 0.5, ARENA_H * 0.5)) > 180.0:
 			trees.append(tree_pos)
+			tree_occupied.append(tree_pos)
 	for _i in range(rng.randi_range(2, 4)):
 		flowers.append(origin + Vector2(rng.randf_range(20, CHUNK_SIZE - 20), rng.randf_range(20, CHUNK_SIZE - 20)))
 	for _i in range(rng.randi_range(1, 2)):
@@ -222,7 +237,7 @@ func _install_chunk_collisions(chunk: Dictionary) -> void:
 	for p in chunk.trees:
 		# Tree Tower art is 480px. Only its lower trunk blocks movement so the
 		# player can naturally walk behind the canopy/top section.
-		chunk.collision_nodes.append(_static_circle(p + Vector2(0, 48), 58.0))
+		chunk.collision_nodes.append(_static_circle(p + Vector2(0, 35), 36.0))
 	for p in chunk.houses:
 		chunk.collision_nodes.append(_static_box(p + Vector2(0, 12), Vector2(150, 92)))
 
@@ -309,19 +324,25 @@ func _draw() -> void:
 				draw_texture_rect(swamp_ground_tex, Rect2(origin + Vector2(tile_x * 256, tile_y * 256), Vector2(258, 258)), false)
 		for p in chunk.trees:
 			var tree_tex: Texture2D = swamp_tree_short_tex if posmod(floori(p.x + p.y), 2) == 0 else swamp_tree_tall_tex
-			var tree_size := Vector2(288, 288)
+			var tree_size := Vector2(190, 190)
 			draw_texture_rect(tree_tex, Rect2(p - Vector2(tree_size.x * 0.5, tree_size.y * 0.72), tree_size), false)
 	# Quest actors use the actual repository sprites.
 	for m in monsters:
-		var frame := int(time * 8.0) % 6
-		var row := 1 if m.dir.x >= 0 else 2
-		if time < float(m.get("hit_until", 0.0)):
-			draw_circle(m.pos - Vector2(0, 18), 25, Color(1.0, 0.92, 0.68, 0.72))
-		draw_texture_rect_region(enemy_tex, Rect2(m.pos - Vector2(28, 46), Vector2(56, 56)), Rect2(frame * 32, row * 32, 32, 32))
+		var kind: int = int(m.get("kind", 0))
+		var hurt := time < float(m.get("hit_until", 0.0))
+		var texture: Texture2D = goblin_hurt[kind] if hurt else (goblin_run[kind] if m.dir.length() > 0.1 else goblin_idle[kind])
+		var frame_w := 240 if hurt or texture == goblin_run[kind] else 192
+		var frame_h := frame_w
+		var frame_count := 10 if frame_w == 192 else 8
+		var frame := int(time * (12.0 if hurt else 8.0)) % frame_count
+		if hurt:
+			draw_circle(m.pos - Vector2(0, 34), 48, Color(1.0, 0.35, 0.25, 0.3))
+		draw_texture_rect_region(texture, Rect2(m.pos - Vector2(68, 105), Vector2(136, 136)), Rect2(frame * frame_w, 0, frame_w, frame_h))
 	for m in dying_monsters:
 		var alpha := clampf(m.life / 0.55, 0.0, 1.0)
-		draw_set_transform(m.pos, PI * 0.5, Vector2.ONE)
-		draw_texture_rect_region(enemy_tex, Rect2(Vector2(-28, -46), Vector2(56, 56)), Rect2(0, 32, 32, 32), Color(1, 1, 1, alpha))
+		var kind: int = int(m.get("kind", 0))
+		var frame := clampi(int((0.55 - m.life) * 18.0), 0, 9)
+		draw_texture_rect_region(goblin_dying[kind], Rect2(m.pos - Vector2(82, 105), Vector2(164, 164)), Rect2(frame * 240, 0, 240, 240), Color(1, 1, 1, alpha))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# gate glow
 	draw_circle(gate_position, 30, Color(0.3, 0.9, 0.45, 0.4))
@@ -377,9 +398,10 @@ func _build_coins() -> void:
 		add_child(a)
 
 func _build_monsters() -> void:
-	for p in monster_positions:
+	for i in range(monster_positions.size()):
+		var p: Vector2 = monster_positions[i]
 		var angle := map_rng.randf_range(0, TAU)
-		monsters.append({ "pos": p, "hp": 3, "dir": Vector2.from_angle(angle), "shoot_cd": map_rng.randf_range(0.4, 1.2), "sprite": null })
+		monsters.append({ "pos": p, "hp": 3 + (i % 3), "kind": i % 3, "dir": Vector2.from_angle(angle), "shoot_cd": map_rng.randf_range(0.4, 1.2), "sprite": null })
 
 func _wander_monsters(delta: float) -> void:
 	for m in monsters:
@@ -579,7 +601,7 @@ func _damage_monster(m: Dictionary, dmg: int) -> void:
 	hit_tw.tween_property(hit, "modulate:a", 0.0, 0.25)
 	hit_tw.tween_callback(func(): hit.queue_free())
 	if m.hp <= 0:
-		dying_monsters.append({ "pos": m.pos, "life": 0.55 })
+		dying_monsters.append({ "pos": m.pos, "life": 0.55, "kind": int(m.get("kind", 0)) })
 		monsters.erase(m)
 		monsters_left -= 1
 		_spawn_particles(m.pos, Color(0.6, 1.0, 0.4), 16)

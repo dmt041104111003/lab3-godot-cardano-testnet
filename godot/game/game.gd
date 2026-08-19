@@ -52,6 +52,10 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if world == null or not screens.has("play") or not screens["play"].visible:
 		return
+	ui.play_hud_layer.visible = true
+	ui.play_hud_layer.layer = 100
+	if ui.has("hud_root"):
+		ui.hud_root.size = get_viewport_rect().size
 	if Input.is_action_just_pressed("inventory"):
 		_toggle_inventory()
 	if ui.has("skill_slash"):
@@ -236,11 +240,14 @@ func _build_profile() -> void:
 func _build_play() -> void:
 	var s := _screen("play")
 	var hud_layer := CanvasLayer.new()
-	hud_layer.layer = 50
+	hud_layer.layer = 100
+	hud_layer.follow_viewport_enabled = false
 	add_child(hud_layer)
 	ui.play_hud_layer = hud_layer
 	var hud_root := Control.new()
+	ui.hud_root = hud_root
 	hud_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud_root.size = get_viewport_rect().size
 	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud_layer.add_child(hud_root)
 	var top := PanelContainer.new()

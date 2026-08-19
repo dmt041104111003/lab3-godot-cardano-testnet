@@ -44,6 +44,9 @@ var goblin_idle: Array[Texture2D] = []
 var goblin_run: Array[Texture2D] = []
 var goblin_hurt: Array[Texture2D] = []
 var goblin_dying: Array[Texture2D] = []
+var plant_idle: Array[Texture2D] = []
+var plant_attack: Array[Texture2D] = []
+var plant_dying: Array[Texture2D] = []
 var fire_tex: Texture2D
 var custom_slash_tex: Texture2D
 var custom_fire_tex: Texture2D
@@ -93,11 +96,14 @@ func _ready() -> void:
 	swamp_tree_short_tex = _safe_tex("res://assets/map_trees/tree_tower_short.png")
 	swamp_tree_tall_tex = _safe_tex("res://assets/map_trees/tree_tower_tall.png")
 	enemy_tex = _safe_tex("res://assets/local_pack/characters/enemy_walk.png")
-	for kind in ["male", "female", "chief"]:
-		goblin_idle.append(_safe_tex("res://assets/quai_vat/%s/Front___Idle.png" % kind))
-		goblin_run.append(_safe_tex("res://assets/quai_vat/%s/Front___Running.png" % kind))
-		goblin_hurt.append(_safe_tex("res://assets/quai_vat/%s/Front___Hurt.png" % kind))
-		goblin_dying.append(_safe_tex("res://assets/quai_vat/%s/Dying.png" % kind))
+	for kind in [1, 2, 3]:
+		goblin_idle.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Idle_without_shadow.png" % [kind, kind]))
+		goblin_run.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Run_without_shadow.png" % [kind, kind]))
+		goblin_hurt.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Hurt_without_shadow.png" % [kind, kind]))
+		goblin_dying.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Death_without_shadow.png" % [kind, kind]))
+		plant_idle.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Idle_without_shadow.png" % [kind, kind]))
+		plant_attack.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Attack_without_shadow.png" % [kind, kind]))
+		plant_dying.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Death_without_shadow.png" % [kind, kind]))
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
 	custom_slash_tex = _safe_tex("res://assets/local_pack/skills/arc_slash.png")
 	_build_cached_skill_resources()
@@ -328,26 +334,38 @@ func _draw() -> void:
 			for tile_y in range(2):
 				draw_texture_rect(swamp_ground_tex, Rect2(origin + Vector2(tile_x * 256, tile_y * 256), Vector2(258, 258)), false)
 		for p in chunk.trees:
-			var tree_tex: Texture2D = swamp_tree_short_tex if posmod(floori(p.x + p.y), 2) == 0 else swamp_tree_tall_tex
-			var tree_size := Vector2(190, 190)
-			draw_texture_rect(tree_tex, Rect2(p - Vector2(tree_size.x * 0.5, tree_size.y * 0.72), tree_size), false)
+			var tree_kind := posmod(floori(p.x + p.y), 3)
+			var tree_size := Vector2(150, 150)
+			draw_texture_rect_region(plant_idle[tree_kind], Rect2(p - Vector2(tree_size.x * 0.5, tree_size.y * 0.78), tree_size), Rect2(0, 0, 64, 64))
 	# Quest actors use the actual repository sprites.
 	for m in monsters:
 		var kind: int = int(m.get("kind", 0))
 		var hurt := time < float(m.get("hit_until", 0.0))
+		if bool(m.get("plant", false)):
+			var attacking := time < float(m.get("attack_until", 0.0))
+			var plant_tex: Texture2D = plant_attack[kind] if attacking else plant_idle[kind]
+			var plant_frames := 7 if attacking else 1
+			var plant_frame := int(time * 10.0) % plant_frames
+			if hurt:
+				draw_circle(m.pos - Vector2(0, 44), 54, Color(1.0, 0.35, 0.25, 0.3))
+			draw_texture_rect_region(plant_tex, Rect2(m.pos - Vector2(72, 118), Vector2(144, 144)), Rect2(plant_frame * 64, 0, 64, 64))
+			continue
 		var texture: Texture2D = goblin_hurt[kind] if hurt else (goblin_run[kind] if m.dir.length() > 0.1 else goblin_idle[kind])
-		var frame_w := 240 if hurt or texture == goblin_run[kind] else 192
-		var frame_h := frame_w
-		var frame_count := 10 if frame_w == 192 else 8
-		var frame := int(time * (12.0 if hurt else 8.0)) % frame_count
+		var frame_w := 256 if hurt or texture == goblin_run[kind] else 256
+		var frame_count: int = maxi(1, texture.get_width() / frame_w)
+		var frame: int = int(time * (12.0 if hurt else 8.0)) % frame_count
 		if hurt:
 			draw_circle(m.pos - Vector2(0, 34), 48, Color(1.0, 0.35, 0.25, 0.3))
-		draw_texture_rect_region(texture, Rect2(m.pos - Vector2(68, 105), Vector2(136, 136)), Rect2(frame * frame_w, 0, frame_w, frame_h))
+		draw_texture_rect_region(texture, Rect2(m.pos - Vector2(76, 114), Vector2(152, 152)), Rect2(frame * frame_w, 0, frame_w, frame_w))
 	for m in dying_monsters:
 		var alpha := clampf(m.life / 0.55, 0.0, 1.0)
 		var kind: int = int(m.get("kind", 0))
 		var frame := clampi(int((0.55 - m.life) * 18.0), 0, 9)
-		draw_texture_rect_region(goblin_dying[kind], Rect2(m.pos - Vector2(82, 105), Vector2(164, 164)), Rect2(frame * 240, 0, 240, 240), Color(1, 1, 1, alpha))
+		var death_tex: Texture2D = plant_dying[kind] if bool(m.get("plant", false)) else goblin_dying[kind]
+		var death_frame_w := 64 if bool(m.get("plant", false)) else 256
+		var death_frames: int = maxi(1, death_tex.get_width() / death_frame_w)
+		var death_frame: int = mini(frame, death_frames - 1)
+		draw_texture_rect_region(death_tex, Rect2(m.pos - Vector2(82, 118), Vector2(164, 164)), Rect2(death_frame * death_frame_w, 0, death_frame_w, death_frame_w), Color(1, 1, 1, alpha))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# gate glow
 	draw_circle(gate_position, 30, Color(0.3, 0.9, 0.45, 0.4))
@@ -403,13 +421,27 @@ func _build_coins() -> void:
 		add_child(a)
 
 func _build_monsters() -> void:
+	monsters_left = monster_positions.size() + tree_positions.size()
 	for i in range(monster_positions.size()):
 		var p: Vector2 = monster_positions[i]
 		var angle := map_rng.randf_range(0, TAU)
 		monsters.append({ "pos": p, "hp": 3 + (i % 3), "kind": i % 3, "dir": Vector2.from_angle(angle), "shoot_cd": map_rng.randf_range(0.4, 1.2), "sprite": null })
+	for i in range(tree_positions.size()):
+		monsters.append({ "pos": tree_positions[i], "hp": 5 + (i % 3), "kind": i % 3, "dir": Vector2.ZERO, "shoot_cd": map_rng.randf_range(0.5, 1.3), "attack_until": 0.0, "plant": true, "sprite": null })
 
 func _wander_monsters(delta: float) -> void:
 	for m in monsters:
+		if bool(m.get("plant", false)):
+			m.shoot_cd -= delta
+			var plant_to_player: Vector2 = player.position - m.pos
+			if plant_to_player.length() < 460.0 and m.shoot_cd <= 0.0:
+				m.shoot_cd = 1.55
+				m.attack_until = time + 0.48
+				_spawn_enemy_projectile(m.pos + plant_to_player.normalized() * 28.0, plant_to_player.normalized())
+			if plant_to_player.length() < 92.0 and player_hit_cd <= 0.0:
+				player_hit_cd = 0.8
+				player_damaged.emit()
+			continue
 		m.pos += m.dir * 55.0 * delta
 		m.shoot_cd -= delta
 		var to_player: Vector2 = player.position - m.pos

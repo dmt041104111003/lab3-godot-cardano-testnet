@@ -40,6 +40,8 @@ var enemy_tex: Texture2D
 var fire_tex: Texture2D
 var custom_slash_tex: Texture2D
 var custom_fire_tex: Texture2D
+var explosion_frames: SpriteFrames
+var light_texture: Texture2D
 var chest_tex: Texture2D
 var slash_textures: Array[Texture2D] = []
 var hero_idle_tex: Texture2D
@@ -74,8 +76,8 @@ func _ready() -> void:
 	props_tex = _safe_tex("res://assets/local_pack/world/props.png")
 	enemy_tex = _safe_tex("res://assets/local_pack/characters/enemy_walk.png")
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
-	custom_slash_tex = _safe_tex("res://assets/custom/skills/spectral_slash.png")
-	custom_fire_tex = _safe_tex("res://assets/custom/skills/inferno_orb.png")
+	custom_slash_tex = _safe_tex("res://assets/local_pack/skills/arc_slash.png")
+	_build_cached_skill_resources()
 	chest_tex = _safe_tex("res://assets/local_pack/world/chest.png")
 	hero_idle_tex = _safe_tex("res://assets/local_pack/characters/hero_idle.png")
 	for i in range(4):
@@ -330,17 +332,17 @@ func _cast_slash() -> void:
 	var end: Vector2 = player.position + dir * 260
 	_spawn_ring(start, Color("#64efff"), 54.0, 0.24, 4.0)
 	_spawn_direction_streak(player.position, dir, 285.0, Color(0.25, 0.92, 1.0, 0.72), 0.18)
-	for i in range(3):
+	for i in range(2):
 		var wave := _spawn_custom_vfx(custom_slash_tex, start + dir * (44 + i * 24), 0.22 + i * 0.035)
 		wave.rotation = dir.angle()
-		wave.modulate = Color(0.45 + i * 0.08, 0.92, 1.0, 0.94 - i * 0.12)
+		wave.modulate = Color(0.28 + i * 0.12, 0.78, 1.0, 0.92 - i * 0.18)
 		var tw := create_tween()
 		tw.set_parallel(true)
 		tw.tween_property(wave, "position", end + dir * (i * 18), 0.18 + i * 0.035).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 		tw.tween_property(wave, "scale", Vector2(0.22 + i * 0.025, 0.22 + i * 0.025), 0.22)
 		tw.tween_property(wave, "modulate:a", 0.0, 0.25 + i * 0.04)
 		tw.chain().tween_callback(func(): wave.queue_free())
-	_spawn_particles(start, Color(0.35, 0.92, 1.0), 18, 80.0)
+	_spawn_particles(start, Color(0.35, 0.92, 1.0), 8, 80.0)
 	_damage_in_direction(player.position, dir, 290.0, 72.0, 1)
 	_flash(Color(0.25, 0.9, 1.0, 0.075), 0.10)
 	_shake(4.0)
@@ -348,12 +350,15 @@ func _cast_slash() -> void:
 func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
 	var node := Node2D.new()
-	var col := _custom_vfx_sprite(custom_fire_tex)
-	col.scale = Vector2(0.34, 0.34)
-	col.rotation = dir.angle()
+	var col := AnimatedSprite2D.new()
+	col.sprite_frames = explosion_frames
+	col.animation = "projectile"
+	col.scale = Vector2(0.055, 0.055)
+	col.modulate = Color("#ff9d43")
+	col.play()
 	node.add_child(col)
 	var glow := PointLight2D.new()
-	glow.texture = _radial_light_texture()
+	glow.texture = light_texture
 	glow.color = Color("#ff8a24")
 	glow.energy = 1.35
 	glow.texture_scale = 0.75
@@ -369,7 +374,7 @@ func _cast_fireball() -> void:
 	add_child(node)
 	projectiles.append({ "node": node, "dir": dir, "speed": 420.0, "life": 1.2 })
 	_spawn_ring(node.position, Color("#ff9a32"), 50.0, 0.30, 5.0)
-	_spawn_particles(node.position, Color("#ffb13b"), 12, 70.0)
+	_spawn_particles(node.position, Color("#ffb13b"), 6, 70.0)
 	_flash(Color(1.0, 0.35, 0.05, 0.055), 0.09)
 	_shake(2.5)
 
@@ -462,16 +467,21 @@ func _spawn_custom_vfx(texture: Texture2D, pos: Vector2, effect_scale: float) ->
 	return sprite
 
 func _spawn_impact(pos: Vector2, fiery: bool) -> void:
-	var fx := _spawn_vfx(3 if fiery else 1, pos, 0.055)
 	var impact_color := Color("#ff8a22") if fiery else Color("#52e8ff")
+	var fx: CanvasItem
+	if fiery:
+		fx = _spawn_explosion_animation(pos)
+	else:
+		fx = _spawn_vfx(1, pos, 0.055)
 	_spawn_ring(pos, impact_color, 62.0 if fiery else 48.0, 0.34, 5.0)
 	_spawn_ring(pos, Color(1, 1, 1, 0.82), 34.0, 0.20, 2.5)
-	var tw := create_tween()
-	tw.set_parallel(true)
-	tw.tween_property(fx, "scale", Vector2(0.13, 0.13), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(fx, "modulate:a", 0.0, 0.42).set_delay(0.10)
-	tw.tween_callback(func(): fx.queue_free()).set_delay(0.45)
-	_spawn_particles(pos, impact_color, 16 if fiery else 11, 150.0)
+	if not fiery:
+		var tw := create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(fx, "scale", Vector2(0.13, 0.13), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(fx, "modulate:a", 0.0, 0.42).set_delay(0.10)
+		tw.tween_callback(func(): fx.queue_free()).set_delay(0.45)
+	_spawn_particles(pos, impact_color, 8 if fiery else 7, 150.0)
 	_flash(Color(impact_color, 0.035), 0.07)
 	_shake(4.0)
 
@@ -531,7 +541,34 @@ func _update_camera_shake(delta: float) -> void:
 	shake_strength = move_toward(shake_strength, 0.0, delta * 35.0)
 	cam.offset = Vector2(randf_range(-shake_strength, shake_strength), randf_range(-shake_strength, shake_strength))
 
-func _radial_light_texture() -> Texture2D:
+func _build_cached_skill_resources() -> void:
+	explosion_frames = SpriteFrames.new()
+	explosion_frames.add_animation("projectile")
+	explosion_frames.set_animation_speed("projectile", 16.0)
+	explosion_frames.set_animation_loop("projectile", true)
+	explosion_frames.add_animation("impact")
+	explosion_frames.set_animation_speed("impact", 28.0)
+	explosion_frames.set_animation_loop("impact", false)
+	for i in range(20):
+		var tex := _safe_tex("res://assets/local_pack/vfx/explosion/ExplosionFx-Explossion_%02d.png" % i)
+		explosion_frames.add_frame("impact", tex)
+		if i >= 3 and i <= 8:
+			explosion_frames.add_frame("projectile", tex)
+	light_texture = _make_radial_light_texture()
+
+func _spawn_explosion_animation(pos: Vector2) -> AnimatedSprite2D:
+	var fx := AnimatedSprite2D.new()
+	fx.sprite_frames = explosion_frames
+	fx.animation = "impact"
+	fx.position = pos
+	fx.scale = Vector2(0.11, 0.11)
+	fx.modulate = Color("#ff8d32")
+	fx.animation_finished.connect(func(): fx.queue_free())
+	add_child(fx)
+	fx.play()
+	return fx
+
+func _make_radial_light_texture() -> Texture2D:
 	var gradient := Gradient.new()
 	gradient.set_color(0, Color(1, 1, 1, 1))
 	gradient.set_color(1, Color(1, 1, 1, 0))

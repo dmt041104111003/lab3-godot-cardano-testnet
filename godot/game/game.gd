@@ -310,14 +310,21 @@ func _build_play() -> void:
 	skills.anchor_right = 0.5
 	skills.anchor_top = 1.0
 	skills.anchor_bottom = 1.0
-	skills.offset_left = -190
-	skills.offset_top = -138
-	skills.offset_right = 190
+	skills.offset_left = -109
+	skills.offset_top = -116
+	skills.offset_right = 109
 	skills.offset_bottom = -10
 	skills.add_theme_constant_override("separation", 10)
 	hud_root.add_child(skills)
-	var slash_card := _skill_card("J", "SPECTRAL SLASH", Color("#35e6ff"), load("res://assets/custom/skills/spectral_slash.png"), func(): _activate_skill(1))
-	var fire_card := _skill_card("K", "INFERNO ORB", Color("#ff7a24"), load("res://assets/custom/skills/inferno_orb.png"), func(): _activate_skill(2))
+	var icon_atlas: Texture2D = load("res://assets/local_pack/skills/spell_icons.png")
+	var slash_icon := AtlasTexture.new()
+	slash_icon.atlas = icon_atlas
+	slash_icon.region = Rect2(18, 317, 18, 18)
+	var fire_icon := AtlasTexture.new()
+	fire_icon.atlas = icon_atlas
+	fire_icon.region = Rect2(0, 317, 18, 18)
+	var slash_card := _skill_card("J", "ARC SLASH", Color("#53dcff"), slash_icon, func(): _activate_skill(1))
+	var fire_card := _skill_card("K", "NOVA BURST", Color("#ff9d38"), fire_icon, func(): _activate_skill(2))
 	skills.add_child(slash_card.card)
 	skills.add_child(fire_card.card)
 	ui.skill_slash = slash_card.status
@@ -336,23 +343,23 @@ func _build_play() -> void:
 
 func _skill_card(key: String, title: String, accent: Color, icon: Texture2D, callback: Callable) -> Dictionary:
 	var card := Button.new()
-	card.custom_minimum_size = Vector2(185, 128)
+	card.custom_minimum_size = Vector2(104, 104)
 	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	card.tooltip_text = title + "  |  Click or press " + key
 	card.pressed.connect(callback)
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.025, 0.06, 0.10, 0.96)
-	normal.border_color = Color(accent, 0.82)
+	normal.bg_color = Color("#101722")
+	normal.border_color = Color("#526174")
 	normal.set_border_width_all(2)
-	normal.set_corner_radius_all(14)
+	normal.set_corner_radius_all(8)
 	normal.shadow_color = Color(0, 0, 0, 0.62)
-	normal.shadow_size = 10
+	normal.shadow_size = 6
 	var hover := normal.duplicate()
-	hover.bg_color = Color(accent, 0.20)
+	hover.bg_color = Color("#192638")
 	hover.border_color = accent
-	hover.set_border_width_all(3)
+	hover.set_border_width_all(2)
 	var pressed := hover.duplicate()
-	pressed.bg_color = Color(accent, 0.34)
+	pressed.bg_color = Color(accent, 0.24)
 	var disabled := normal.duplicate()
 	disabled.bg_color = Color(0.025, 0.04, 0.06, 0.88)
 	disabled.border_color = Color(accent, 0.28)
@@ -360,29 +367,34 @@ func _skill_card(key: String, title: String, accent: Color, icon: Texture2D, cal
 	card.add_theme_stylebox_override("hover", hover)
 	card.add_theme_stylebox_override("pressed", pressed)
 	card.add_theme_stylebox_override("disabled", disabled)
-	var row := HBoxContainer.new()
-	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 12
-	row.offset_top = 10
-	row.offset_right = -10
-	row.offset_bottom = -10
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", 8)
-	card.add_child(row)
+	var stack := VBoxContainer.new()
+	stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.offset_left = 7
+	stack.offset_top = 5
+	stack.offset_right = -7
+	stack.offset_bottom = -5
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(stack)
+	var heading := HBoxContainer.new()
+	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	heading.add_child(_label(key, 8, accent))
+	var title_label := _label(title, 7, Color.WHITE)
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	heading.add_child(title_label)
+	stack.add_child(heading)
 	var picture := TextureRect.new()
 	picture.texture = icon
-	picture.custom_minimum_size = Vector2(76, 76)
+	picture.custom_minimum_size = Vector2(58, 58)
 	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(picture)
-	var copy := VBoxContainer.new()
-	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(copy)
-	copy.add_child(_label("[" + key + "]", 11, accent))
-	copy.add_child(_label(title, 9, Color.WHITE))
-	var status := _label("READY", 9, Color("#7ef29a"))
-	copy.add_child(status)
+	stack.add_child(picture)
+	var status := _label("READY", 7, Color("#7ef29a"))
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stack.add_child(status)
 	return { "card": card, "status": status }
 
 func _activate_skill(index: int) -> void:

@@ -86,5 +86,5 @@ func _physics_process(_delta: float) -> void:
 		direction = "right" if facing.x > 0 else "left"
 	elif facing.y < 0:
 		direction = "up"
-	anim.flip_h = direction == "left"
+	anim.flip_h = direction == "right"
 	anim.play(("run_" if moving else "idle_") + direction)

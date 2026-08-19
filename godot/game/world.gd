@@ -57,6 +57,7 @@ var current_chunk_bounds := Rect2i(999999, 999999, 0, 0)
 var sign_tex: Texture2D
 var redraw_accum := 0.0
 var projectile_particle_accum := 0.0
+var player_hit_cd := 0.0
 
 func _safe_tex(path: String) -> Texture2D:
 	var t = load(path)
@@ -98,6 +99,7 @@ func _process(delta: float) -> void:
 	time += delta
 	skill1_cd = maxf(skill1_cd - delta, 0.0)
 	skill2_cd = maxf(skill2_cd - delta, 0.0)
+	player_hit_cd = maxf(player_hit_cd - delta, 0.0)
 	_wander_monsters(delta)
 	_update_light()
 	_handle_skills()
@@ -282,7 +284,8 @@ func _wander_monsters(delta: float) -> void:
 			m.dir = Vector2(-m.dir.x, m.dir.y)
 		if m.pos.y < 120 or m.pos.y > ARENA_H - 120:
 			m.dir = Vector2(m.dir.x, -m.dir.y)
-		if player.position.distance_to(m.pos) < 40:
+		if player.position.distance_to(m.pos) < 40 and player_hit_cd <= 0.0:
+			player_hit_cd = 0.8
 			player_damaged.emit()
 
 func _build_gate() -> void:

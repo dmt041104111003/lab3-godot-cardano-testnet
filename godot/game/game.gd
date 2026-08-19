@@ -29,6 +29,8 @@ var poll_timer: Timer
 var poll_hash := ""
 var poll_phase := ""
 var poll_count := 0
+var max_health := 100
+var current_health := 100
 
 func _ready() -> void:
 	_ensure_input()
@@ -226,6 +228,10 @@ func _build_play() -> void:
 	hud_layer.layer = 50
 	add_child(hud_layer)
 	ui.play_hud_layer = hud_layer
+	var hud_root := Control.new()
+	hud_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_layer.add_child(hud_root)
 	var top := PanelContainer.new()
 	top.anchor_right = 1.0
 	top.offset_left = 16
@@ -234,20 +240,41 @@ func _build_play() -> void:
 	top.offset_bottom = 72
 	top.add_theme_constant_override("margin_left", 16)
 	top.add_theme_constant_override("margin_right", 16)
-	hud_layer.add_child(top)
+	hud_root.add_child(top)
 	var h := HBoxContainer.new()
 	top.add_child(h)
 	h.add_theme_constant_override("separation", 18)
-	ui.play_quest = _label("", 13, Color("#73f7de"))
+	var vitals := VBoxContainer.new()
+	vitals.custom_minimum_size.x = 230
+	vitals.add_child(_label("PLAYER VITALS", 8, Color("#ffb4b4")))
+	ui.health_bar = ProgressBar.new()
+	ui.health_bar.max_value = max_health
+	ui.health_bar.value = current_health
+	ui.health_bar.show_percentage = false
+	ui.health_bar.custom_minimum_size = Vector2(230, 16)
+	var hp_bg := StyleBoxFlat.new()
+	hp_bg.bg_color = Color("#190d18")
+	hp_bg.set_corner_radius_all(7)
+	var hp_fill := StyleBoxFlat.new()
+	hp_fill.bg_color = Color("#ef3857")
+	hp_fill.set_corner_radius_all(7)
+	ui.health_bar.add_theme_stylebox_override("background", hp_bg)
+	ui.health_bar.add_theme_stylebox_override("fill", hp_fill)
+	vitals.add_child(ui.health_bar)
+	ui.health_text = _label("HP 100 / 100", 8, Color.WHITE)
+	vitals.add_child(ui.health_text)
+	h.add_child(vitals)
+	ui.play_quest = _label("", 11, Color("#73f7de"))
+	ui.play_quest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(ui.play_quest)
-	ui.play_progress = _label("", 11, COLOR_INFO)
+	ui.play_progress = _label("", 9, COLOR_INFO)
 	h.add_child(ui.play_progress)
-	ui.inventory = _label("", 10, Color("#ffd166"))
-	h.add_child(ui.inventory)
-	ui.ada_balance = _label("ADA --", 12, Color("#73f7de"))
+	ui.ada_balance = _label("ADA --", 11, Color("#73f7de"))
+	ui.ada_balance.custom_minimum_size.x = 155
+	ui.ada_balance.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	h.add_child(ui.ada_balance)
-	h.add_child(Label.new())
 	var back := _button("EXIT", func(): _stop_run())
+	back.custom_minimum_size = Vector2(100, 52)
 	back.size_flags_horizontal = Control.SIZE_SHRINK_END
 	h.add_child(back)
 	# online chat
@@ -258,7 +285,7 @@ func _build_play() -> void:
 	chat_box.offset_right = 420
 	chat_box.custom_minimum_size.y = 190
 	chat_box.add_theme_constant_override("separation", 4)
-	hud_layer.add_child(chat_box)
+	hud_root.add_child(chat_box)
 	ui.chat = RichTextLabel.new()
 	ui.chat.bbcode_enabled = true
 	ui.chat.scroll_active = true
@@ -274,18 +301,21 @@ func _build_play() -> void:
 	chat_row.add_child(send)
 	chat_box.add_child(chat_row)
 	ui.info_label = _label("Click a player to view their profile", 13, COLOR_INFO)
-	hud_layer.add_child(ui.info_label)
+	hud_root.add_child(ui.info_label)
 	ui.info_label.anchors_preset = Control.PRESET_BOTTOM_RIGHT
 	ui.info_label.offset_right = -12
-	ui.info_label.offset_bottom = -136
+	ui.info_label.offset_bottom = -164
 	var skills := HBoxContainer.new()
-	skills.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	skills.offset_left = -390
-	skills.offset_top = -148
-	skills.offset_right = -18
-	skills.offset_bottom = -18
+	skills.anchor_left = 0.5
+	skills.anchor_right = 0.5
+	skills.anchor_top = 1.0
+	skills.anchor_bottom = 1.0
+	skills.offset_left = -190
+	skills.offset_top = -138
+	skills.offset_right = 190
+	skills.offset_bottom = -10
 	skills.add_theme_constant_override("separation", 10)
-	hud_layer.add_child(skills)
+	hud_root.add_child(skills)
 	var slash_card := _skill_card("J", "SPECTRAL SLASH", Color("#35e6ff"), load("res://assets/custom/skills/spectral_slash.png"), func(): _activate_skill(1))
 	var fire_card := _skill_card("K", "INFERNO ORB", Color("#ff7a24"), load("res://assets/custom/skills/inferno_orb.png"), func(): _activate_skill(2))
 	skills.add_child(slash_card.card)
@@ -300,7 +330,7 @@ func _build_play() -> void:
 	flow.offset_top = 82
 	flow.offset_right = -18
 	flow.offset_bottom = 124
-	hud_layer.add_child(flow)
+	hud_root.add_child(flow)
 	ui.flow_label = _centered_label("PLAY  >  MILESTONE  >  CIP-0170  >  CARDANO", 9, Color("#ffd166"))
 	flow.add_child(ui.flow_label)
 
@@ -529,6 +559,7 @@ func _start_run() -> void:
 		_set_label(ui, "profile_msg", "Login with your wallet to play and refresh your ADA balance.", COLOR_WARN)
 		return
 	quest_state.reset_run()
+	current_health = max_health
 	current_quest = 0
 	_in_play()
 	_show_screen("play")
@@ -544,6 +575,7 @@ func _in_play() -> void:
 	world.player_damaged.connect(_on_player_damaged)
 	world.player_clicked.connect(_on_player_clicked)
 	_update_quest_hud()
+	_update_health_hud()
 	if ui.chat != null:
 		ui.chat.clear()
 	_chat_timer = Timer.new()
@@ -568,8 +600,7 @@ func _update_quest_hud() -> void:
 	ui.play_quest.text = QUEST_NAMES[current_quest]
 	if world != null:
 		ui.play_progress.text = "Coins %d/%d   Monsters %d/%d" % [8 - int(world.coins_left), 8, 3 - int(world.monsters_left), 3]
-		ui.inventory.text = "MAP #%04d  |  J: Slash  K: Fireball" % [absi(int(world.map_seed)) % 10000]
-		ui.ada_balance.text = "%.6f ADA" % cip30.balance_ada
+		ui.ada_balance.text = "₳ %.6f" % cip30.balance_ada
 		var identity := "WALLET CONNECTED / CIP-0170 READY"
 		ui.flow_label.text = "PLAY  >  MILESTONE  >  CIP-0170  >  CARDANO   |   " + identity
 
@@ -594,7 +625,18 @@ func _on_gate() -> void:
 		_complete_quest(2)
 
 func _on_player_damaged() -> void:
-	world.reset_player()
+	current_health = maxi(current_health - 20, 0)
+	_update_health_hud()
+	if current_health <= 0:
+		current_health = max_health
+		world.reset_player()
+		_update_health_hud()
+
+func _update_health_hud() -> void:
+	if not ui.has("health_bar"):
+		return
+	ui.health_bar.value = current_health
+	ui.health_text.text = "HP %d / %d" % [current_health, max_health]
 
 func _on_player_clicked(address: String, name: String) -> void:
 	ui.info_label.text = "Loading %s profile..." % name

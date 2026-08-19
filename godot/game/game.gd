@@ -208,15 +208,10 @@ func _build_profile() -> void:
 	v.add_child(rn)
 	ui.profile_stats = _label("", 13, COLOR_INFO)
 	v.add_child(ui.profile_stats)
+	ui.profile_balance = _label("Connect a CIP-30 wallet to read your ADA balance.", 12, Color("#ffd166"))
+	v.add_child(ui.profile_balance)
 	var rb := _row()
 	rb.add_child(_button("LOGIN WITH WALLET (CIP-30)", func(): _login_wallet()))
-	rb.add_child(_button("GUEST", func():
-		profile.player_name = ui.profile_name.text.strip_edges()
-		profile.address = ""
-		profile.save_profile()
-		_apply_profile_to_ui()
-		_transition_to("menu")
-	))
 	rb.add_child(_button("BACK", func(): _transition_to("menu")))
 	v.add_child(rb)
 	ui.profile_msg = _label("", 11)
@@ -246,6 +241,8 @@ func _build_play() -> void:
 	h.add_child(ui.play_progress)
 	ui.inventory = _label("", 10, Color("#ffd166"))
 	h.add_child(ui.inventory)
+	ui.ada_balance = _label("ADA --", 12, Color("#73f7de"))
+	h.add_child(ui.ada_balance)
 	h.add_child(Label.new())
 	var back := _button("EXIT", func(): _stop_run())
 	back.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -400,8 +397,18 @@ func _apply_profile_to_ui() -> void:
 	ui.profile_name.text = profile.player_name
 	_set_label(ui, "profile_stats", "Level %d  -  XP %d/%d  -  Coins %d  -  Terminals %d" % [profile.level, profile.xp, profile.level * 100, profile.fragments, profile.terminals], COLOR_INFO)
 	var who := "Player" if profile.player_name == "" else profile.player_name
-	var login := "Logged in" if profile.address != "" else "Guest"
-	ui.menu_player.text = "%s  -  Level %d  -  %d/%d XP  -  %s" % [who, profile.level, profile.xp, profile.level * 100, login]
+	var login := "Login required"
+	var ada := "ADA --"
+	if cip30.connected and cip30.address == profile.address:
+		login = "Wallet connected"
+		ada = "%.2f ADA" % cip30.balance_ada
+	ui.menu_player.text = "%s  -  Level %d  -  %d/%d XP  -  %s  -  %s" % [who, profile.level, profile.xp, profile.level * 100, login, ada]
+	if profile.address == "":
+		_set_label(ui, "profile_balance", "No account yet. Enter a name and connect your wallet.", COLOR_WARN)
+	elif cip30.connected and cip30.address == profile.address:
+		_set_label(ui, "profile_balance", "Balance: %.6f ADA  |  Wallet: %s..." % [cip30.balance_ada, profile.address.substr(0, 20)], Color("#73f7de"))
+	else:
+		_set_label(ui, "profile_balance", "Reconnect wallet to refresh ADA balance.", COLOR_WARN)
 
 func _cloud_save() -> void:
 	if profile.address == "":
@@ -418,8 +425,11 @@ func _cloud_save() -> void:
 	cardano_service.save_player(profile.address, data, func(_r: int, _c: int, _d): pass)
 
 func _login_wallet() -> void:
+	if ui.profile_name.text.strip_edges() == "":
+		_set_label(ui, "profile_msg", "Enter a player name before connecting your wallet.", COLOR_WARN)
+		return
 	if not cip30.is_available():
-		_set_label(ui, "profile_msg", "No CIP-30 wallet in this browser. Enter an address manually.", COLOR_WARN)
+		_set_label(ui, "profile_msg", "No CIP-30 wallet found. Install Eternl, Vespr, Nami, Gero or Flint.", COLOR_WARN)
 		return
 	_set_label(ui, "profile_msg", "Connecting wallet...", COLOR_WARN)
 	cip30.connect_wallet(_cb_login_wallet)
@@ -431,6 +441,7 @@ func _cb_login_wallet(data) -> void:
 	profile.player_name = ui.profile_name.text.strip_edges()
 	profile.address = cip30.address
 	profile.save_profile()
+	_apply_profile_to_ui()
 	_load_cloud_profile()
 
 func _load_cloud_profile() -> void:
@@ -455,12 +466,24 @@ func _cb_load_cloud(result: int, code: int, data) -> void:
 		_apply_profile_to_ui()
 		_set_label(ui, "profile_msg", "Cloud profile loaded for " + profile.address.substr(0, 20) + "... OK", COLOR_OK)
 	else:
-		_set_label(ui, "profile_msg", "New player - no cloud profile yet. Save to create it.", COLOR_INFO)
+		profile.save_profile()
+		_cloud_save()
+		_apply_profile_to_ui()
+		_set_label(ui, "profile_msg", "Account created. Wallet and ADA balance are ready.", COLOR_OK)
+	get_tree().create_timer(0.8).timeout.connect(func(): _transition_to("menu"))
 
 # ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
 func _start_run() -> void:
+	if profile.player_name == "" or profile.address == "":
+		_transition_to("profile")
+		_set_label(ui, "profile_msg", "Create an account with your player name and wallet before playing.", COLOR_WARN)
+		return
+	if not cip30.connected or cip30.address != profile.address:
+		_transition_to("profile")
+		_set_label(ui, "profile_msg", "Login with your wallet to play and refresh your ADA balance.", COLOR_WARN)
+		return
 	quest_state.reset_run()
 	current_quest = 0
 	_in_play()
@@ -502,7 +525,8 @@ func _update_quest_hud() -> void:
 	if world != null:
 		ui.play_progress.text = "Coins %d/%d   Monsters %d/%d" % [8 - int(world.coins_left), 8, 3 - int(world.monsters_left), 3]
 		ui.inventory.text = "MAP #%04d  |  J: Slash  K: Fireball" % [absi(int(world.map_seed)) % 10000]
-		var identity := "GUEST / OFF-CHAIN" if profile.address == "" else "WALLET CONNECTED / CIP-0170 READY"
+		ui.ada_balance.text = "%.6f ADA" % cip30.balance_ada
+		var identity := "WALLET CONNECTED / CIP-0170 READY"
 		ui.flow_label.text = "PLAY  >  MILESTONE  >  CIP-0170  >  CARDANO   |   " + identity
 
 func _on_coins(n: int) -> void:
@@ -751,8 +775,9 @@ func _connect_cip30() -> void:
 func _cb_cip30_connected(data) -> void:
 	ui.cip30_btn.disabled = false
 	if cip30.apply_connect_result(data):
-		ui.cip30_status.text = "Wallet connected: " + cip30.address.substr(0, 20) + "..."
+		ui.cip30_status.text = "Wallet connected: " + cip30.address.substr(0, 20) + "...  |  %.6f ADA" % cip30.balance_ada
 		ui.cip30_status.add_theme_color_override("font_color", COLOR_OK)
+		_apply_profile_to_ui()
 	else:
 		var msg := "wallet connect failed"
 		if data is Dictionary and data.has("error"):

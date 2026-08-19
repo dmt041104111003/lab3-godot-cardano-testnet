@@ -41,7 +41,7 @@ func load_profile() -> void:
 
 func save_profile() -> void:
 	var data := {
-		"name": name,
+		"name": player_name,
 		"address": address,
 		"xp": xp,
 		"level": level,

@@ -6,6 +6,8 @@ var address := ""
 var signature := ""
 var key := ""
 var connected := false
+var balance_lovelace := 0
+var balance_ada := 0.0
 var pending_cb: Callable = Callable()
 var _timer: Timer
 var _poll_var := ""
@@ -29,8 +31,28 @@ func connect_wallet(cb: Callable) -> void:
 	  var w = window.cardano || {};
 	  var name = ['eternl','vespr','nami','gero','flint'].find(function(n){ return w[n]; });
 	  if(!name){ window.__c30c = JSON.stringify({error:'no CIP-30 wallet found'}); return; }
-	  w[name].enable().then(function(api){ return api.getUsedAddresses(); })
-	    .then(function(addrs){ window.__c30c = JSON.stringify({address: addrs[0] || ''}); })
+	  function head(hex, at){
+	    var b = parseInt(hex.slice(at, at + 2), 16), ai = b & 31, major = b >> 5, p = at + 2;
+	    if(ai < 24) return {major:major, value:BigInt(ai), next:p};
+	    var sizes = {24:1, 25:2, 26:4, 27:8}, n = sizes[ai];
+	    if(!n) throw new Error('unsupported CBOR value');
+	    return {major:major, value:BigInt('0x' + hex.slice(p, p + n * 2)), next:p + n * 2};
+	  }
+	  function coin(hex){
+	    var value = head(hex, 0);
+	    if(value.major === 0) return value.value;
+	    if(value.major === 4){
+	      var amount = head(hex, value.next);
+	      if(amount.major === 0) return amount.value;
+	    }
+	    throw new Error('invalid CIP-30 balance');
+	  }
+	  w[name].enable().then(function(api){
+	    return Promise.all([api.getUsedAddresses(), api.getChangeAddress(), api.getBalance()]);
+	  }).then(function(values){
+	    var address = values[0][0] || values[1] || '';
+	    window.__c30c = JSON.stringify({address:address, balanceLovelace:coin(values[2]).toString()});
+	  })
 	    .catch(function(e){ window.__c30c = JSON.stringify({error: String(e)}); });
 	})();
 	""")
@@ -81,6 +103,8 @@ func apply_connect_result(data) -> bool:
 	if data == null or data.has("error") or data.get("address", "") == "":
 		return false
 	address = str(data.get("address", ""))
+	balance_lovelace = int(str(data.get("balanceLovelace", "0")))
+	balance_ada = float(balance_lovelace) / 1000000.0
 	connected = true
 	return true
 

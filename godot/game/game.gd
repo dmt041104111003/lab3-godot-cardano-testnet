@@ -287,6 +287,12 @@ func _build_play() -> void:
 	h.add_child(ui.play_quest)
 	ui.play_progress = _label("", 9, COLOR_INFO)
 	h.add_child(ui.play_progress)
+	var ada_coin := TextureRect.new()
+	ada_coin.texture = load("res://assets/local_pack/ui/coin.png")
+	ada_coin.custom_minimum_size = Vector2(24, 24)
+	ada_coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ada_coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	h.add_child(ada_coin)
 	ui.ada_balance = _label("ADA --", 11, Color("#73f7de"))
 	ui.ada_balance.custom_minimum_size.x = 155
 	ui.ada_balance.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT

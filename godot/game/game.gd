@@ -222,6 +222,8 @@ func _build_profile() -> void:
 
 func _build_play() -> void:
 	var s := _screen("play")
+	# Keep the HUD above the dynamically-added world node.
+	s.z_index = 100
 	var top := PanelContainer.new()
 	top.anchor_right = 1.0
 	top.offset_left = 16
@@ -273,6 +275,7 @@ func _build_play() -> void:
 	ui.info_label.offset_right = -12
 	ui.info_label.offset_bottom = -136
 	var skills := HBoxContainer.new()
+	skills.z_index = 110
 	skills.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	skills.offset_left = -310
 	skills.offset_top = -120

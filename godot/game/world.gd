@@ -149,15 +149,20 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 	var flowers: Array[Vector2] = []
 	var ponds: Array[Vector2] = []
 	var ruins: Array[Vector2] = []
-	for _i in range(rng.randi_range(4, 9)):
-		trees.append(origin + Vector2(rng.randf_range(48, CHUNK_SIZE - 48), rng.randf_range(48, CHUNK_SIZE - 48)))
-	for _i in range(rng.randi_range(8, 18)):
+	var patches: Array[Vector2] = []
+	for _i in range(rng.randi_range(2, 4)):
+		var tree_pos := origin + Vector2(rng.randf_range(64, CHUNK_SIZE - 64), rng.randf_range(64, CHUNK_SIZE - 64))
+		if tree_pos.distance_to(Vector2(ARENA_W * 0.5, ARENA_H * 0.5)) > 180.0:
+			trees.append(tree_pos)
+	for _i in range(rng.randi_range(4, 7)):
 		flowers.append(origin + Vector2(rng.randf_range(20, CHUNK_SIZE - 20), rng.randf_range(20, CHUNK_SIZE - 20)))
-	if rng.randf() < 0.28:
+	for _i in range(rng.randi_range(1, 2)):
+		patches.append(origin + Vector2(rng.randf_range(60, CHUNK_SIZE - 60), rng.randf_range(60, CHUNK_SIZE - 60)))
+	if rng.randf() < 0.12:
 		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
-	if rng.randf() < 0.18:
+	if rng.randf() < 0.05:
 		ruins.append(origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(110, CHUNK_SIZE - 110)))
-	return { "origin": origin, "trees": trees, "flowers": flowers, "ponds": ponds, "ruins": ruins, "tone": rng.randf_range(-0.025, 0.025) }
+	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "tone": rng.randf_range(-0.012, 0.012) }
 
 func _generate_map() -> void:
 	# A fresh deterministic layout is created every time World is instantiated.
@@ -214,15 +219,15 @@ func _draw() -> void:
 	for chunk in active_chunks.values():
 		var origin: Vector2 = chunk.origin
 		var tone: float = chunk.tone
-		draw_rect(Rect2(origin, Vector2(CHUNK_SIZE, CHUNK_SIZE)), Color(0.17 + tone, 0.30 + tone, 0.21 + tone))
-		for tx in range(0, CHUNK_SIZE, 64):
-			for ty in range(0, CHUNK_SIZE, 64):
-				draw_texture_rect_region(terrain_tex, Rect2(origin + Vector2(tx, ty), Vector2(64, 64)), Rect2(0, 0, 48, 48))
+		draw_rect(Rect2(origin, Vector2(CHUNK_SIZE, CHUNK_SIZE)), Color(0.16 + tone, 0.29 + tone, 0.20 + tone))
+		# Terrain atlas is used as sparse ground accents, never wallpapered.
+		for p in chunk.patches:
+			draw_texture_rect_region(terrain_tex, Rect2(p - Vector2(32, 32), Vector2(64, 64)), Rect2(112, 144, 48, 48))
 		for p in chunk.ponds:
 			draw_circle(p, 58, Color("#285b68"))
 			draw_circle(p, 49, Color("#367b8a"))
 		for p in chunk.ruins:
-			draw_texture_rect_region(props_tex, Rect2(p - Vector2(88, 72), Vector2(176, 144)), Rect2(0, 0, 176, 144))
+			draw_texture_rect_region(props_tex, Rect2(p - Vector2(72, 58), Vector2(144, 116)), Rect2(0, 0, 176, 144))
 		for p in chunk.flowers:
 			draw_circle(p, 2.5, Color("#d5e889") if int(p.x + p.y) % 2 == 0 else Color("#f2c879"))
 		for p in chunk.trees:

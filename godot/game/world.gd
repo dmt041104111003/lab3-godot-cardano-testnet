@@ -6,6 +6,7 @@ signal monsters_killed(count)
 signal gate_reached
 signal player_damaged
 signal player_clicked(address, name)
+signal shop_requested(shop_name)
 
 const ARENA_W := 1600.0
 const ARENA_H := 900.0
@@ -62,6 +63,12 @@ var redraw_accum := 0.0
 var projectile_particle_accum := 0.0
 var player_hit_cd := 0.0
 var local_hp := 100
+var damage_bonus := 0
+var aim_world := Vector2.ZERO
+var aim_marker: Line2D
+var npc_positions := [Vector2(690, 410), Vector2(940, 520)]
+var portal_position := Vector2(1180, 450)
+var region_index := 0
 
 func _safe_tex(path: String) -> Texture2D:
 	var t = load(path)
@@ -98,9 +105,11 @@ func _ready() -> void:
 	# Direct camera tracking keeps keyboard movement crisp in the Web build.
 	cam.position_smoothing_enabled = false
 	player.add_child(cam)
+	_build_aim_marker()
 
 func _process(delta: float) -> void:
 	time += delta
+	_update_aim()
 	skill1_cd = maxf(skill1_cd - delta, 0.0)
 	skill2_cd = maxf(skill2_cd - delta, 0.0)
 	player_hit_cd = maxf(player_hit_cd - delta, 0.0)
@@ -117,6 +126,39 @@ func _process(delta: float) -> void:
 	if redraw_accum >= 0.20:
 		redraw_accum = 0.0
 		queue_redraw()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		try_cast_skill(2)
+		get_viewport().set_input_as_handled()
+	if event is InputEventKey and event.physical_keycode == KEY_E and event.pressed:
+		for i in range(npc_positions.size()):
+			if player.position.distance_to(npc_positions[i]) < 90.0:
+				shop_requested.emit("Merchant" if i == 0 else "Cook")
+				get_viewport().set_input_as_handled()
+				return
+		if player.position.distance_to(portal_position) < 100.0:
+			_travel_next_region()
+
+func _build_aim_marker() -> void:
+	aim_marker = Line2D.new()
+	aim_marker.width = 3.0
+	aim_marker.default_color = Color(0.45, 0.94, 1.0, 0.88)
+	aim_marker.antialiased = true
+	aim_marker.closed = true
+	aim_marker.points = PackedVector2Array([Vector2(0, -11), Vector2(8, 8), Vector2(0, 4), Vector2(-8, 8)])
+	add_child(aim_marker)
+
+func _update_aim() -> void:
+	if player == null:
+		return
+	aim_world = get_global_mouse_position()
+	var aim_dir := (aim_world - player.position).normalized()
+	player.set_aim_direction(aim_dir)
+	aim_marker.position = aim_world
+	aim_marker.rotation = aim_dir.angle() + PI * 0.5
+	var pulse := 1.0 + sin(time * 7.0) * 0.12
+	aim_marker.scale = Vector2(pulse, pulse)
 
 # ---------------------------------------------------------------------------
 # Arena
@@ -142,9 +184,13 @@ func _update_chunks(force := false) -> void:
 			var coord := Vector2i(x, y)
 			needed[coord] = true
 			if not active_chunks.has(coord):
-				active_chunks[coord] = _generate_chunk(coord)
+				var chunk := _generate_chunk(coord)
+				_install_chunk_collisions(chunk)
+				active_chunks[coord] = chunk
 	for coord in active_chunks.keys():
 		if not needed.has(coord):
+			for body in active_chunks[coord].collision_nodes:
+				body.queue_free()
 			active_chunks.erase(coord)
 	queue_redraw()
 
@@ -157,6 +203,7 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 	var ponds: Array[Vector2] = []
 	var ruins: Array[Vector2] = []
 	var patches: Array[Vector2] = []
+	var houses: Array[Vector2] = []
 	for _i in range(rng.randi_range(1, 2)):
 		var tree_pos := origin + Vector2(rng.randf_range(64, CHUNK_SIZE - 64), rng.randf_range(64, CHUNK_SIZE - 64))
 		if tree_pos.distance_to(Vector2(ARENA_W * 0.5, ARENA_H * 0.5)) > 180.0:
@@ -169,7 +216,37 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
 	if rng.randf() < 0.05:
 		ruins.append(origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(110, CHUNK_SIZE - 110)))
-	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins }
+	if rng.randf() < 0.10:
+		houses.append(origin + Vector2(rng.randf_range(130, CHUNK_SIZE - 130), rng.randf_range(150, CHUNK_SIZE - 120)))
+	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "houses": houses, "collision_nodes": [] }
+
+func _install_chunk_collisions(chunk: Dictionary) -> void:
+	for p in chunk.trees:
+		chunk.collision_nodes.append(_static_circle(p + Vector2(0, 4), 27.0))
+	for p in chunk.houses:
+		chunk.collision_nodes.append(_static_box(p + Vector2(0, 12), Vector2(150, 92)))
+
+func _static_circle(pos: Vector2, radius: float) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	var collision := CollisionShape2D.new()
+	var shape := CircleShape2D.new()
+	shape.radius = radius
+	collision.shape = shape
+	body.add_child(collision)
+	body.position = pos
+	add_child(body)
+	return body
+
+func _static_box(pos: Vector2, size: Vector2) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	var collision := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = size
+	collision.shape = shape
+	body.add_child(collision)
+	body.position = pos
+	add_child(body)
+	return body
 
 func _generate_map() -> void:
 	# A fresh deterministic layout is created every time World is instantiated.
@@ -227,7 +304,9 @@ func _draw() -> void:
 		var origin: Vector2 = chunk.origin
 		# Every chunk shares exactly the same base tone. Overlap by two pixels so
 		# camera filtering and fractional scaling cannot reveal the joins.
-		draw_rect(Rect2(origin - Vector2(2, 2), Vector2(CHUNK_SIZE + 4, CHUNK_SIZE + 4)), Color("#1b472a"))
+		var biome_colors := [Color("#1b472a"), Color("#315238"), Color("#51432c"), Color("#263e53")]
+		var biome := posmod(floori(chunk.origin.x / CHUNK_SIZE) + floori(chunk.origin.y / CHUNK_SIZE) + region_index, biome_colors.size())
+		draw_rect(Rect2(origin - Vector2(2, 2), Vector2(CHUNK_SIZE + 4, CHUNK_SIZE + 4)), biome_colors[biome])
 		# Terrain atlas is used as sparse ground accents, never wallpapered.
 		for p in chunk.patches:
 			draw_texture_rect_region(terrain_tex, Rect2(p - Vector2(32, 32), Vector2(64, 64)), Rect2(112, 144, 48, 48))
@@ -237,7 +316,7 @@ func _draw() -> void:
 		for p in chunk.ruins:
 			draw_texture_rect_region(props_tex, Rect2(p - Vector2(72, 58), Vector2(144, 116)), Rect2(0, 0, 176, 144))
 		for p in chunk.flowers:
-			draw_circle(p, 2.5, Color("#d5e889") if int(p.x + p.y) % 2 == 0 else Color("#f2c879"))
+			draw_circle(p, 1.2, Color("#b7cf7a") if int(p.x + p.y) % 2 == 0 else Color("#d9b96d"))
 		for p in chunk.trees:
 			var sway := sin(time * 1.7 + p.x * 0.013) * 3.0
 			draw_colored_polygon(PackedVector2Array([p + Vector2(-7, 18), p + Vector2(7, 18), p + Vector2(5 + sway, -30), p + Vector2(-5 + sway, -30)]), Color("#70482c"))
@@ -245,6 +324,12 @@ func _draw() -> void:
 			draw_circle(p + Vector2(sway + 13, -38), 23, Color("#2d7542"))
 			draw_circle(p + Vector2(sway, -55), 25, Color("#3a8a4b"))
 			draw_circle(p + Vector2(sway - 5, -60), 9, Color(0.42, 0.76, 0.38, 0.34))
+		for p in chunk.houses:
+			draw_rect(Rect2(p - Vector2(90, 58), Vector2(180, 116)), Color("#a56a43"))
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-105, -55), p + Vector2(0, -125), p + Vector2(105, -55)]), Color("#5f3342"))
+			draw_rect(Rect2(p + Vector2(-22, 5), Vector2(44, 53)), Color("#3d2630"))
+			draw_rect(Rect2(p + Vector2(-70, -25), Vector2(34, 30)), Color("#7ee0df"))
+			draw_rect(Rect2(p + Vector2(36, -25), Vector2(34, 30)), Color("#7ee0df"))
 	# Quest actors use the actual repository sprites.
 	for m in monsters:
 		var frame := int(time * 8.0) % 6
@@ -261,6 +346,31 @@ func _draw() -> void:
 	draw_circle(gate_position, 30, Color(0.3, 0.9, 0.45, 0.4))
 	draw_circle(gate_position, 18, Color(0.35, 0.95, 0.5))
 	draw_texture_rect_region(chest_tex, Rect2(gate_position - Vector2(28, 46), Vector2(56, 72)), Rect2(0, 0, 40, 48))
+	for i in range(npc_positions.size()):
+		var npc: Vector2 = npc_positions[i]
+		draw_circle(npc - Vector2(0, 18), 25, Color("#e7b75b") if i == 0 else Color("#e88763"))
+		draw_circle(npc - Vector2(0, 38), 15, Color("#ffe0b2"))
+		draw_string(ThemeDB.fallback_font, npc + Vector2(-44, -66), ("MERCHANT [E]" if i == 0 else "COOK [E]"), HORIZONTAL_ALIGNMENT_CENTER, 88, 12, Color.WHITE)
+	draw_circle(portal_position, 52 + sin(time * 3.0) * 5.0, Color(0.22, 0.78, 1.0, 0.18))
+	draw_arc(portal_position, 42, 0, TAU, 32, Color("#62e7ff"), 5.0, true)
+	draw_string(ThemeDB.fallback_font, portal_position + Vector2(-68, -62), "NEXT REGION [E]", HORIZONTAL_ALIGNMENT_CENTER, 136, 13, Color("#9bf4ff"))
+	_draw_sign(Vector2(1030, 450), "SHOP  <     PORTAL  >")
+	_draw_sign(Vector2(800, 650), "VILLAGE / QUEST GATE")
+
+func _draw_sign(pos: Vector2, text: String) -> void:
+	draw_rect(Rect2(pos - Vector2(70, 24), Vector2(140, 48)), Color("#76502f"))
+	draw_line(pos + Vector2(0, 24), pos + Vector2(0, 62), Color("#4a3020"), 9.0)
+	draw_string(ThemeDB.fallback_font, pos + Vector2(-64, 5), text, HORIZONTAL_ALIGNMENT_CENTER, 128, 10, Color("#fff0bd"))
+
+func _travel_next_region() -> void:
+	region_index += 1
+	player.position += Vector2(CHUNK_SIZE * 4, 0)
+	portal_position += Vector2(CHUNK_SIZE * 4, 0)
+	for i in range(npc_positions.size()):
+		npc_positions[i] += Vector2(CHUNK_SIZE * 4, 0)
+	_update_chunks(true)
+	_spawn_ring(player.position, Color("#62e7ff"), 86, 0.45, 7)
+	_spawn_popup(player.position, "REGION %d" % (region_index + 1), Color("#9bf4ff"))
 
 # ---------------------------------------------------------------------------
 # Coins / monsters / gate
@@ -361,7 +471,7 @@ func _cast_slash() -> void:
 		tw.tween_property(wave, "modulate:a", 0.0, 0.25 + i * 0.04)
 		tw.chain().tween_callback(func(): wave.queue_free())
 	_spawn_particles(start, Color(0.35, 0.92, 1.0), 8, 80.0)
-	_damage_in_direction(player.position, dir, 445.0, 88.0, 1)
+	_damage_in_direction(player.position, dir, 445.0, 88.0, 1 + damage_bonus)
 	_flash(Color(0.25, 0.9, 1.0, 0.075), 0.10)
 	_shake(4.0)
 
@@ -413,7 +523,7 @@ func _update_projectiles(delta: float) -> void:
 		node.scale = Vector2(pulse, pulse)
 		for m in monsters.duplicate():
 			if node.position.distance_to(m.pos) < 30:
-				_damage_monster(m, 1)
+				_damage_monster(m, 1 + damage_bonus)
 				_spawn_impact(node.position, true)
 				projectiles.erase(p)
 				node.queue_free()

@@ -8,6 +8,7 @@ var anim: AnimatedSprite2D
 var moving := false
 var action_state := "idle"
 var state_until := 0.0
+var aim_direction := Vector2.DOWN
 
 func _ready() -> void:
 	anim = AnimatedSprite2D.new()
@@ -67,23 +68,12 @@ func _physics_process(_delta: float) -> void:
 		Input.get_axis("ui_left", "ui_right"),
 		Input.get_axis("ui_up", "ui_down"),
 	)
-	# This game uses four-direction art. Resolve simultaneous/stale browser input
-	# to one dominant axis so vertical movement can never display as diagonal.
-	var dir := Vector2.ZERO
-	if absf(raw_dir.x) > absf(raw_dir.y):
-		dir.x = signf(raw_dir.x)
-	elif raw_dir.y != 0.0:
-		dir.y = signf(raw_dir.y)
-	elif raw_dir.x != 0.0:
-		dir.x = signf(raw_dir.x)
+	var dir := raw_dir.normalized()
 	velocity = dir * SPEED
 	moving = velocity.length() > 10.0
 	if Time.get_ticks_msec() * 0.001 >= state_until:
 		action_state = "run" if moving else "idle"
-	if dir.x != 0:
-		facing = Vector2(signf(dir.x), 0)
-	elif dir.y != 0:
-		facing = Vector2(0, signf(dir.y))
+	facing = aim_direction
 	move_and_slide()
 	var direction := "down"
 	if absf(facing.x) > absf(facing.y):
@@ -92,6 +82,10 @@ func _physics_process(_delta: float) -> void:
 		direction = "up"
 	anim.flip_h = direction == "right"
 	anim.play(("run_" if moving else "idle_") + direction)
+
+func set_aim_direction(value: Vector2) -> void:
+	if value.length_squared() > 0.001:
+		aim_direction = value.normalized()
 
 func show_hurt() -> void:
 	action_state = "hurt"

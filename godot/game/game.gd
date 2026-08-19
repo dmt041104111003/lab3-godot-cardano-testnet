@@ -31,6 +31,14 @@ var poll_phase := ""
 var poll_count := 0
 var max_health := 100
 var current_health := 100
+var equipment := { "weapon": "Traveler Blade", "armor": "Cloth Tunic", "food": "Berry Bread" }
+var inventory_items := [
+	{ "name": "Traveler Blade", "slot": "weapon", "value": 120, "damage": 2 },
+	{ "name": "Forest Axe", "slot": "weapon", "value": 280, "damage": 4 },
+	{ "name": "Cloth Tunic", "slot": "armor", "value": 90, "hp": 10 },
+	{ "name": "Iron Vest", "slot": "armor", "value": 340, "hp": 35 },
+	{ "name": "Berry Bread", "slot": "food", "value": 25, "hp": 20, "mp": 10 },
+]
 
 func _ready() -> void:
 	_ensure_input()
@@ -44,6 +52,8 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if world == null or not screens.has("play") or not screens["play"].visible:
 		return
+	if Input.is_action_just_pressed("inventory"):
+		_toggle_inventory()
 	if ui.has("skill_slash"):
 		var slash_cd: float = world.skill1_cd
 		ui.skill_slash.text = "READY" if slash_cd <= 0.0 else "%.1fs" % slash_cd
@@ -70,6 +80,7 @@ func _ensure_input() -> void:
 	_add_key("ui_accept", KEY_SPACE)
 	_add_key("skill_1", KEY_J)
 	_add_key("skill_2", KEY_K)
+	_add_key("inventory", KEY_I)
 
 func _add_key(action: String, key: Key) -> void:
 	if not InputMap.has_action(action):
@@ -277,6 +288,9 @@ func _build_play() -> void:
 	back.custom_minimum_size = Vector2(100, 52)
 	back.size_flags_horizontal = Control.SIZE_SHRINK_END
 	h.add_child(back)
+	var bag := _button("BAG [I]", func(): _toggle_inventory())
+	bag.custom_minimum_size = Vector2(120, 52)
+	h.add_child(bag)
 	# online chat
 	var chat_box := VBoxContainer.new()
 	chat_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -340,6 +354,63 @@ func _build_play() -> void:
 	hud_root.add_child(flow)
 	ui.flow_label = _centered_label("PLAY  >  MILESTONE  >  CIP-0170  >  CARDANO", 9, Color("#ffd166"))
 	flow.add_child(ui.flow_label)
+	_build_inventory_panel(hud_root)
+
+func _build_inventory_panel(parent: Control) -> void:
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -330
+	panel.offset_top = -245
+	panel.offset_right = 330
+	panel.offset_bottom = 245
+	panel.visible = false
+	panel.z_index = 100
+	parent.add_child(panel)
+	ui.inventory_panel = panel
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 10)
+	panel.add_child(root)
+	root.add_child(_centered_label("INVENTORY & EQUIPMENT", 18, Color("#73f7de")))
+	ui.equipment_stats = _label("", 10, Color("#ffd166"))
+	root.add_child(ui.equipment_stats)
+	for item in inventory_items:
+		var row := HBoxContainer.new()
+		var description := "%s  |  %s  |  VALUE ₳%d" % [item.name, str(item.slot).to_upper(), int(item.value)]
+		var stat_parts := []
+		if item.has("damage"): stat_parts.append("DMG +%d" % item.damage)
+		if item.has("hp"): stat_parts.append("HP +%d" % item.hp)
+		if item.has("mp"): stat_parts.append("MP +%d" % item.mp)
+		var label := _label(description + "  " + " ".join(stat_parts), 8, Color.WHITE)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(label)
+		row.add_child(_button("EQUIP", func(): _equip_item(item)))
+		root.add_child(row)
+	root.add_child(_button("CLOSE [I]", func(): _toggle_inventory()))
+	_refresh_equipment_stats()
+
+func _toggle_inventory() -> void:
+	if not ui.has("inventory_panel"):
+		return
+	ui.inventory_panel.visible = not ui.inventory_panel.visible
+
+func _equip_item(item: Dictionary) -> void:
+	equipment[item.slot] = item.name
+	_refresh_equipment_stats()
+	var bonus_hp := 0
+	var bonus_damage := 0
+	for owned in inventory_items:
+		if equipment.get(owned.slot, "") == owned.name:
+			bonus_hp += int(owned.get("hp", 0))
+			bonus_damage += int(owned.get("damage", 0))
+	max_health = 100 + bonus_hp
+	current_health = mini(current_health, max_health)
+	if world != null:
+		world.damage_bonus = bonus_damage
+	_update_health_hud()
+
+func _refresh_equipment_stats() -> void:
+	if ui.has("equipment_stats"):
+		ui.equipment_stats.text = "EQUIPPED  |  Weapon: %s  |  Armor: %s  |  Food: %s\nHP %d  |  MP 100  |  Damage bonus active" % [equipment.weapon, equipment.armor, equipment.food, max_health]
 
 func _skill_card(key: String, title: String, accent: Color, icon: Texture2D, callback: Callable) -> Dictionary:
 	var card := Button.new()
@@ -586,6 +657,7 @@ func _in_play() -> void:
 	world.gate_reached.connect(_on_gate)
 	world.player_damaged.connect(_on_player_damaged)
 	world.player_clicked.connect(_on_player_clicked)
+	world.shop_requested.connect(_on_shop_requested)
 	_update_quest_hud()
 	_update_health_hud()
 	if ui.chat != null:
@@ -677,6 +749,10 @@ func _on_player_clicked(address: String, name: String) -> void:
 			ui.info_label.text = "Could not load %s profile" % name
 			ui.info_label.add_theme_color_override("font_color", COLOR_ERR)
 	)
+
+func _on_shop_requested(shop_name: String) -> void:
+	ui.inventory_panel.visible = true
+	ui.equipment_stats.text = shop_name.to_upper() + " SHOP  |  Equip items or food below. Item VALUE affects rarity and stats.\n" + ui.equipment_stats.text
 
 var _chat_timer: Timer
 

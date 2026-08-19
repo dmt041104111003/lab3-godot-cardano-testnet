@@ -57,6 +57,8 @@ var new_enemy_death: Array[Texture2D] = []
 var plant_idle: Array[Texture2D] = []
 var plant_attack: Array[Texture2D] = []
 var plant_dying: Array[Texture2D] = []
+var rock_textures: Array[Texture2D] = []
+var rock_shadow_textures: Array[Texture2D] = []
 var fire_tex: Texture2D
 var custom_slash_tex: Texture2D
 var custom_fire_tex: Texture2D
@@ -110,6 +112,18 @@ func _load_enemy_sequence(folder: String, prefix: String, count: int) -> Array[T
 		frames.append(_safe_tex("res://assets/new_enemy/%s/%s_%03d.png" % [folder, prefix, i]))
 	return frames
 
+func _load_asset_set(folder: String) -> Array[Texture2D]:
+	var result: Array[Texture2D] = []
+	var dir := DirAccess.open(folder)
+	if dir == null:
+		return result
+	var files := dir.get_files()
+	files.sort()
+	for file in files:
+		if file.to_lower().ends_with(".png"):
+			result.append(_safe_tex(folder + "/" + file))
+	return result
+
 func _ready() -> void:
 	coin_tex = _safe_tex("res://assets/local_pack/ui/coin.png")
 	swamp_ground_tex = _safe_tex("res://assets/map_trees/swamp_ground.png")
@@ -130,6 +144,8 @@ func _ready() -> void:
 	new_enemy_hurt = _load_enemy_sequence("hurt", "Front - Hurt", 10)
 	new_enemy_attack = _load_enemy_sequence("attack", "Front - Attacking", 10)
 	new_enemy_death = _load_enemy_sequence("death", "Dying", 10)
+	rock_textures = _load_asset_set("res://assets/da/rocks")
+	rock_shadow_textures = _load_asset_set("res://assets/da/shadows")
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
 	custom_slash_tex = _safe_tex("res://assets/local_pack/skills/arc_slash.png")
 	_build_cached_skill_resources()
@@ -254,6 +270,7 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 	var ruins: Array[Vector2] = []
 	var patches: Array[Vector2] = []
 	var houses: Array[Vector2] = []
+	var rocks: Array[Dictionary] = []
 	var tree_occupied: Array[Vector2] = []
 	for _i in range(rng.randi_range(1, 2)):
 		var tree_pos := origin + Vector2(rng.randf_range(92, CHUNK_SIZE - 92), rng.randf_range(92, CHUNK_SIZE - 92))
@@ -264,6 +281,15 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 		if clear and tree_pos.distance_to(Vector2(ARENA_W * 0.5, ARENA_H * 0.5)) > 180.0:
 			trees.append(tree_pos)
 			tree_occupied.append(tree_pos)
+	for _i in range(rng.randi_range(5, 9)):
+		var rock_pos := origin + Vector2(rng.randf_range(48, CHUNK_SIZE - 48), rng.randf_range(48, CHUNK_SIZE - 48))
+		var rock_clear := true
+		for other in tree_occupied:
+			if rock_pos.distance_to(other) < 75.0:
+				rock_clear = false
+		if rock_clear:
+			tree_occupied.append(rock_pos)
+			rocks.append({"pos": rock_pos, "variant": rng.randi_range(0, 39), "scale": rng.randf_range(0.58, 0.88)})
 	for _i in range(rng.randi_range(2, 4)):
 		flowers.append(origin + Vector2(rng.randf_range(20, CHUNK_SIZE - 20), rng.randf_range(20, CHUNK_SIZE - 20)))
 	for _i in range(rng.randi_range(1, 2)):
@@ -272,13 +298,15 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
 	if rng.randf() < 0.05:
 		ruins.append(origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(110, CHUNK_SIZE - 110)))
-	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "houses": houses, "collision_nodes": [] }
+	return { "origin": origin, "trees": trees, "rocks": rocks, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "houses": houses, "collision_nodes": [] }
 
 func _install_chunk_collisions(chunk: Dictionary) -> void:
 	for p in chunk.trees:
 		# Tree Tower art is 480px. Only its lower trunk blocks movement so the
 		# player can naturally walk behind the canopy/top section.
 		chunk.collision_nodes.append(_static_circle(p + Vector2(0, 35), 36.0))
+	for rock in chunk.rocks:
+		chunk.collision_nodes.append(_static_circle(rock.pos + Vector2(0, 10), 12.0 * float(rock.scale)))
 	for p in chunk.houses:
 		chunk.collision_nodes.append(_static_box(p + Vector2(0, 12), Vector2(150, 92)))
 
@@ -356,6 +384,11 @@ func _random_open_point(occupied: Array[Vector2], min_distance: float) -> Vector
 			return candidate
 	return Vector2(map_rng.randf_range(100, ARENA_W - 100), map_rng.randf_range(100, ARENA_H - 100))
 
+func _draw_shadow(pos: Vector2, radius: float, stretch: Vector2) -> void:
+	draw_set_transform(pos, 0.0, stretch)
+	draw_circle(Vector2.ZERO, radius, Color(0.02, 0.03, 0.05, 0.38))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
 func _draw() -> void:
 	# Only nearby chunks are retained and rendered; crossing a boundary generates more.
 	for chunk in active_chunks.values():
@@ -368,11 +401,20 @@ func _draw() -> void:
 		for p in chunk.trees:
 			var tree_kind := posmod(floori(p.x + p.y), 3)
 			var tree_size := Vector2(150, 150)
+			_draw_shadow(p + Vector2(0, 48), 28.0, Vector2(1.8, 0.55))
 			draw_texture_rect_region(plant_idle[tree_kind], Rect2(p - Vector2(tree_size.x * 0.5, tree_size.y * 0.78), tree_size), Rect2(0, 0, 64, 64))
+		for rock in chunk.rocks:
+			var rock_pos: Vector2 = rock.pos
+			var rock_scale: float = float(rock.scale)
+			var rock_variant: int = int(rock.variant) % rock_textures.size()
+			_draw_shadow(rock_pos + Vector2(0, 13 * rock_scale), 16.0 * rock_scale, Vector2(1.6, 0.5))
+			draw_texture_rect(rock_shadow_textures[rock_variant], Rect2(rock_pos - Vector2(32, 32) * rock_scale, Vector2(64, 64) * rock_scale), false, Color(1, 1, 1, 0.55))
+			draw_texture_rect(rock_textures[rock_variant], Rect2(rock_pos - Vector2(32, 32) * rock_scale, Vector2(64, 64) * rock_scale), false)
 	# Quest actors use the actual repository sprites.
 	for m in monsters:
 		var kind: int = int(m.get("kind", 0))
 		var hurt := time < float(m.get("hit_until", 0.0))
+		_draw_shadow(m.pos + Vector2(0, 10), 22.0, Vector2(1.7, 0.5))
 		if bool(m.get("plant", false)):
 			var attacking := time < float(m.get("attack_until", 0.0))
 			var plant_tex: Texture2D = plant_attack[kind] if attacking else plant_idle[kind]

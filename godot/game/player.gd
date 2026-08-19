@@ -63,6 +63,11 @@ func _atlas_frame(texture: Texture2D, column: int, row: int) -> AtlasTexture:
 	frame.region = Rect2(column * 32, row * 32, 32, 32)
 	return frame
 
+func _draw() -> void:
+	draw_set_transform(Vector2(0, 10), 0.0, Vector2(1.8, 0.55))
+	draw_circle(Vector2.ZERO, 13.0, Color(0.02, 0.03, 0.05, 0.42))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
 func _physics_process(_delta: float) -> void:
 	var raw_dir := Vector2(
 		Input.get_axis("ui_left", "ui_right"),

@@ -27,6 +27,7 @@ var skill3_cd := 0.0
 var skill4_cd := 0.0
 var skill5_cd := 0.0
 var skill6_cd := 0.0
+var selected_skill := 2
 var time := 0.0
 var presence_t := 0.0
 var projectiles: Array[Dictionary] = []
@@ -195,7 +196,7 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		try_cast_skill(2)
+		try_cast_skill(selected_skill)
 		get_viewport().set_input_as_handled()
 	if event is InputEventKey and event.physical_keycode == KEY_E and event.pressed:
 		for i in range(npc_positions.size()):
@@ -281,15 +282,21 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 		if clear and tree_pos.distance_to(Vector2(ARENA_W * 0.5, ARENA_H * 0.5)) > 180.0:
 			trees.append(tree_pos)
 			tree_occupied.append(tree_pos)
-	for _i in range(rng.randi_range(5, 9)):
-		var rock_pos := origin + Vector2(rng.randf_range(48, CHUNK_SIZE - 48), rng.randf_range(48, CHUNK_SIZE - 48))
-		var rock_clear := true
-		for other in tree_occupied:
-			if rock_pos.distance_to(other) < 75.0:
-				rock_clear = false
-		if rock_clear:
-			tree_occupied.append(rock_pos)
-			rocks.append({"pos": rock_pos, "variant": rng.randi_range(0, 39), "scale": rng.randf_range(0.58, 0.88)})
+	for _i in range(rng.randi_range(5, 8)):
+		var placed := false
+		for _attempt in range(48):
+			var rock_pos := origin + Vector2(rng.randf_range(56, CHUNK_SIZE - 56), rng.randf_range(56, CHUNK_SIZE - 56))
+			var rock_clear := true
+			for other in tree_occupied:
+				if rock_pos.distance_to(other) < 130.0:
+					rock_clear = false
+			if rock_clear:
+				tree_occupied.append(rock_pos)
+				rocks.append({"pos": rock_pos, "variant": rng.randi_range(0, 39), "scale": rng.randf_range(0.58, 0.82)})
+				placed = true
+				break
+		if not placed:
+			continue
 	for _i in range(rng.randi_range(2, 4)):
 		flowers.append(origin + Vector2(rng.randf_range(20, CHUNK_SIZE - 20), rng.randf_range(20, CHUNK_SIZE - 20)))
 	for _i in range(rng.randi_range(1, 2)):
@@ -561,16 +568,22 @@ func _update_light() -> void:
 # ---------------------------------------------------------------------------
 func _handle_skills() -> void:
 	if Input.is_action_just_pressed("skill_1"):
+		selected_skill = 1
 		try_cast_skill(1)
 	if Input.is_action_just_pressed("skill_2"):
+		selected_skill = 2
 		try_cast_skill(2)
 	if Input.is_action_just_pressed("skill_3"):
+		selected_skill = 3
 		try_cast_skill(3)
 	if Input.is_action_just_pressed("skill_4"):
+		selected_skill = 4
 		try_cast_skill(4)
 	if Input.is_action_just_pressed("skill_5"):
+		selected_skill = 5
 		try_cast_skill(5)
 	if Input.is_action_just_pressed("skill_6"):
+		selected_skill = 6
 		try_cast_skill(6)
 
 func try_cast_skill(index: int) -> bool:

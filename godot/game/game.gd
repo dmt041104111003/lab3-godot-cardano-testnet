@@ -20,6 +20,7 @@ var ui := {}
 var fade: ColorRect
 var world: Node2D
 var current_quest := 0
+var run_starting := false
 var in_flow := false
 var flow_quest := 0
 var proof_tx_hash := ""
@@ -390,12 +391,30 @@ func _build_inventory_panel(parent: Control) -> void:
 	panel.offset_bottom = 245
 	panel.visible = false
 	panel.z_index = 100
+	var inventory_style := StyleBoxTexture.new()
+	inventory_style.texture = load("res://assets/hanhtrang/Inventory.png")
+	inventory_style.texture_margin_left = 18
+	inventory_style.texture_margin_top = 18
+	inventory_style.texture_margin_right = 18
+	inventory_style.texture_margin_bottom = 18
+	inventory_style.content_margin_left = 28
+	inventory_style.content_margin_top = 34
+	inventory_style.content_margin_right = 28
+	inventory_style.content_margin_bottom = 26
+	panel.add_theme_stylebox_override("panel", inventory_style)
 	parent.add_child(panel)
 	ui.inventory_panel = panel
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 10)
 	panel.add_child(root)
-	root.add_child(_centered_label("INVENTORY & EQUIPMENT", 18, Color("#73f7de")))
+	var equipment_badge := TextureRect.new()
+	equipment_badge.texture = load("res://assets/hanhtrang/Equipment.png")
+	equipment_badge.custom_minimum_size = Vector2(108, 72)
+	equipment_badge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	equipment_badge.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	equipment_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(equipment_badge)
+	root.add_child(_centered_label("INVENTORY & EQUIPMENT", 16, Color("#f7e5a7")))
 	ui.equipment_stats = _label("", 10, Color("#ffd166"))
 	root.add_child(ui.equipment_stats)
 	for item in inventory_items:
@@ -659,19 +678,29 @@ func _cb_load_cloud(result: int, code: int, data) -> void:
 # Run
 # ---------------------------------------------------------------------------
 func _start_run() -> void:
+	# A browser wallet can lose its transient `connected` flag after a tab
+	# focus change or while the cloud profile is loading. The saved profile
+	# is still the authenticated game identity, so do not strand the player
+	# on the profile screen just because CIP-30 needs reconnecting for a
+	# later on-chain action.
+	if run_starting:
+		return
 	if profile.player_name == "" or profile.address == "":
 		_transition_to("profile")
 		_set_label(ui, "profile_msg", "Create an account with your player name and wallet before playing.", COLOR_WARN)
 		return
 	if not cip30.connected or cip30.address != profile.address:
-		_transition_to("profile")
-		_set_label(ui, "profile_msg", "Login with your wallet to play and refresh your ADA balance.", COLOR_WARN)
-		return
+		_set_label(ui, "menu_player", "%s  -  Wallet session restored  -  reconnect wallet for ADA/actions" % profile.player_name, COLOR_WARN)
 	quest_state.reset_run()
 	current_health = max_health
 	current_quest = 0
+	run_starting = true
 	_in_play()
 	_show_screen("play")
+	call_deferred("_finish_run_start")
+
+func _finish_run_start() -> void:
+	run_starting = false
 
 func _in_play() -> void:
 	if world != null:

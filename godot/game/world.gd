@@ -36,9 +36,9 @@ var grass: Texture2D
 var grass2: Texture2D
 var bush_tex: Texture2D
 var vfx_tex: Texture2D
-var nature_tex: Texture2D
-var terrain_tex: Texture2D
-var props_tex: Texture2D
+var swamp_ground_tex: Texture2D
+var swamp_tree_short_tex: Texture2D
+var swamp_tree_tall_tex: Texture2D
 var enemy_tex: Texture2D
 var fire_tex: Texture2D
 var custom_slash_tex: Texture2D
@@ -80,9 +80,9 @@ func _safe_tex(path: String) -> Texture2D:
 
 func _ready() -> void:
 	coin_tex = _safe_tex("res://assets/local_pack/ui/coin.png")
-	nature_tex = _safe_tex("res://assets/local_pack/world/nature.png")
-	terrain_tex = _safe_tex("res://assets/local_pack/world/terrain.png")
-	props_tex = _safe_tex("res://assets/local_pack/world/props.png")
+	swamp_ground_tex = _safe_tex("res://assets/map_trees/swamp_ground.png")
+	swamp_tree_short_tex = _safe_tex("res://assets/map_trees/tree_tower_short.png")
+	swamp_tree_tall_tex = _safe_tex("res://assets/map_trees/tree_tower_tall.png")
 	enemy_tex = _safe_tex("res://assets/local_pack/characters/enemy_walk.png")
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
 	custom_slash_tex = _safe_tex("res://assets/local_pack/skills/arc_slash.png")
@@ -216,13 +216,13 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
 	if rng.randf() < 0.05:
 		ruins.append(origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(110, CHUNK_SIZE - 110)))
-	if rng.randf() < 0.10:
-		houses.append(origin + Vector2(rng.randf_range(130, CHUNK_SIZE - 130), rng.randf_range(150, CHUNK_SIZE - 120)))
 	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "houses": houses, "collision_nodes": [] }
 
 func _install_chunk_collisions(chunk: Dictionary) -> void:
 	for p in chunk.trees:
-		chunk.collision_nodes.append(_static_circle(p + Vector2(0, 4), 27.0))
+		# Tree Tower art is 480px. Only its lower trunk blocks movement so the
+		# player can naturally walk behind the canopy/top section.
+		chunk.collision_nodes.append(_static_circle(p + Vector2(0, 48), 58.0))
 	for p in chunk.houses:
 		chunk.collision_nodes.append(_static_box(p + Vector2(0, 12), Vector2(150, 92)))
 
@@ -249,9 +249,9 @@ func _static_box(pos: Vector2, size: Vector2) -> StaticBody2D:
 	return body
 
 func _generate_map() -> void:
-	# A fresh deterministic layout is created every time World is instantiated.
-	map_rng.randomize()
-	map_seed = map_rng.seed
+	# One shared deterministic infinite map for every online player/session.
+	map_seed = 7343722026
+	map_rng.seed = map_seed
 	var side := map_rng.randi_range(0, 3)
 	match side:
 		0: gate_position = Vector2(80, map_rng.randf_range(180, ARENA_H - 180))
@@ -302,34 +302,15 @@ func _draw() -> void:
 	# Only nearby chunks are retained and rendered; crossing a boundary generates more.
 	for chunk in active_chunks.values():
 		var origin: Vector2 = chunk.origin
-		# Every chunk shares exactly the same base tone. Overlap by two pixels so
-		# camera filtering and fractional scaling cannot reveal the joins.
-		var biome_colors := [Color("#1b472a"), Color("#315238"), Color("#51432c"), Color("#263e53")]
-		var biome := posmod(floori(chunk.origin.x / CHUNK_SIZE) + floori(chunk.origin.y / CHUNK_SIZE) + region_index, biome_colors.size())
-		draw_rect(Rect2(origin - Vector2(2, 2), Vector2(CHUNK_SIZE + 4, CHUNK_SIZE + 4)), biome_colors[biome])
-		# Terrain atlas is used as sparse ground accents, never wallpapered.
-		for p in chunk.patches:
-			draw_texture_rect_region(terrain_tex, Rect2(p - Vector2(32, 32), Vector2(64, 64)), Rect2(112, 144, 48, 48))
-		for p in chunk.ponds:
-			draw_circle(p, 58, Color("#285b68"))
-			draw_circle(p, 49, Color("#367b8a"))
-		for p in chunk.ruins:
-			draw_texture_rect_region(props_tex, Rect2(p - Vector2(72, 58), Vector2(144, 116)), Rect2(0, 0, 176, 144))
-		for p in chunk.flowers:
-			draw_circle(p, 1.2, Color("#b7cf7a") if int(p.x + p.y) % 2 == 0 else Color("#d9b96d"))
+		# One authored Craftpix ground tile, repeated 2x2 per 512px chunk.
+		# The same texture continues in every direction without custom painting.
+		for tile_x in range(2):
+			for tile_y in range(2):
+				draw_texture_rect(swamp_ground_tex, Rect2(origin + Vector2(tile_x * 256, tile_y * 256), Vector2(258, 258)), false)
 		for p in chunk.trees:
-			var sway := sin(time * 1.7 + p.x * 0.013) * 3.0
-			draw_colored_polygon(PackedVector2Array([p + Vector2(-7, 18), p + Vector2(7, 18), p + Vector2(5 + sway, -30), p + Vector2(-5 + sway, -30)]), Color("#70482c"))
-			draw_circle(p + Vector2(sway - 13, -35), 21, Color("#245d37"))
-			draw_circle(p + Vector2(sway + 13, -38), 23, Color("#2d7542"))
-			draw_circle(p + Vector2(sway, -55), 25, Color("#3a8a4b"))
-			draw_circle(p + Vector2(sway - 5, -60), 9, Color(0.42, 0.76, 0.38, 0.34))
-		for p in chunk.houses:
-			draw_rect(Rect2(p - Vector2(90, 58), Vector2(180, 116)), Color("#a56a43"))
-			draw_colored_polygon(PackedVector2Array([p + Vector2(-105, -55), p + Vector2(0, -125), p + Vector2(105, -55)]), Color("#5f3342"))
-			draw_rect(Rect2(p + Vector2(-22, 5), Vector2(44, 53)), Color("#3d2630"))
-			draw_rect(Rect2(p + Vector2(-70, -25), Vector2(34, 30)), Color("#7ee0df"))
-			draw_rect(Rect2(p + Vector2(36, -25), Vector2(34, 30)), Color("#7ee0df"))
+			var tree_tex: Texture2D = swamp_tree_short_tex if posmod(floori(p.x + p.y), 2) == 0 else swamp_tree_tall_tex
+			var tree_size := Vector2(288, 288)
+			draw_texture_rect(tree_tex, Rect2(p - Vector2(tree_size.x * 0.5, tree_size.y * 0.72), tree_size), false)
 	# Quest actors use the actual repository sprites.
 	for m in monsters:
 		var frame := int(time * 8.0) % 6

@@ -337,13 +337,8 @@ func _build_play() -> void:
 	skills.offset_bottom = -10
 	skills.add_theme_constant_override("separation", 10)
 	hud_root.add_child(skills)
-	var icon_atlas: Texture2D = load("res://assets/local_pack/skills/spell_icons.png")
-	var slash_icon := AtlasTexture.new()
-	slash_icon.atlas = icon_atlas
-	slash_icon.region = Rect2(18, 317, 18, 18)
-	var fire_icon := AtlasTexture.new()
-	fire_icon.atlas = icon_atlas
-	fire_icon.region = Rect2(0, 317, 18, 18)
+	var slash_icon: Texture2D = load("res://assets/vfx_skill/icons/Icons_Water Spell.png")
+	var fire_icon: Texture2D = load("res://assets/vfx_skill/icons/Icons_Fire Spell.png")
 	var slash_card := _skill_card("J", "ARC SLASH", Color("#53dcff"), slash_icon, func(): _activate_skill(1))
 	var fire_card := _skill_card("K", "NOVA BURST", Color("#ff9d38"), fire_icon, func(): _activate_skill(2))
 	skills.add_child(slash_card.card)

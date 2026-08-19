@@ -48,6 +48,11 @@ var fire_tex: Texture2D
 var custom_slash_tex: Texture2D
 var custom_fire_tex: Texture2D
 var light_texture: Texture2D
+var skill_water_spell: SpriteFrames
+var skill_fire_spell: SpriteFrames
+var skill_water_ball: SpriteFrames
+var skill_fire_ball: SpriteFrames
+var skill_fire_arrow: SpriteFrames
 var chest_tex: Texture2D
 var slash_textures: Array[Texture2D] = []
 var hero_idle_tex: Texture2D
@@ -463,16 +468,11 @@ func _cast_slash() -> void:
 	var end: Vector2 = player.position + dir * 430
 	_spawn_ring(start, Color("#64efff"), 54.0, 0.24, 4.0)
 	_spawn_direction_streak(player.position, dir, 440.0, Color(0.25, 0.92, 1.0, 0.72), 0.18)
-	for i in range(2):
-		var wave := _spawn_custom_vfx(custom_slash_tex, start + dir * (44 + i * 24), 0.22 + i * 0.035)
-		wave.rotation = dir.angle()
-		wave.modulate = Color(0.28 + i * 0.12, 0.78, 1.0, 0.92 - i * 0.18)
-		var tw := create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(wave, "position", end + dir * (i * 18), 0.18 + i * 0.035).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-		tw.tween_property(wave, "scale", Vector2(0.22 + i * 0.025, 0.22 + i * 0.025), 0.22)
-		tw.tween_property(wave, "modulate:a", 0.0, 0.25 + i * 0.04)
-		tw.chain().tween_callback(func(): wave.queue_free())
+	var wave := _spawn_skill_anim(skill_water_spell, start, 0.42, Color(0.55, 0.95, 1.0, 0.98), false)
+	wave.rotation = dir.angle()
+	var tw := create_tween()
+	tw.tween_property(wave, "position", end, 0.20).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(func(): wave.queue_free())
 	_spawn_particles(start, Color(0.35, 0.92, 1.0), 8, 80.0)
 	_damage_in_direction(player.position, dir, 445.0, 88.0, 1 + damage_bonus)
 	_flash(Color(0.25, 0.9, 1.0, 0.075), 0.10)
@@ -480,32 +480,9 @@ func _cast_slash() -> void:
 
 func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
-	var node := Node2D.new()
-	var aura := Sprite2D.new()
-	aura.texture = light_texture
-	aura.scale = Vector2(0.52, 0.52)
-	aura.modulate = Color(1.0, 0.22, 0.03, 0.62)
-	node.add_child(aura)
-	var core := Sprite2D.new()
-	core.texture = light_texture
-	core.scale = Vector2(0.22, 0.22)
-	core.modulate = Color(1.0, 0.88, 0.42, 1.0)
-	node.add_child(core)
-	var glow := PointLight2D.new()
-	glow.texture = light_texture
-	glow.color = Color("#ff8a24")
-	glow.energy = 1.35
-	glow.texture_scale = 0.75
-	node.add_child(glow)
-	var trail := Line2D.new()
-	trail.width = 9
-	trail.default_color = Color(1.0, 0.34, 0.04, 0.66)
-	trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	trail.end_cap_mode = Line2D.LINE_CAP_ROUND
-	trail.points = PackedVector2Array([-dir * 54, Vector2.ZERO])
-	node.add_child(trail)
+	var node := _spawn_skill_anim(skill_fire_ball, player.position + dir * 36, 0.19, Color.WHITE, true)
+	node.rotation = dir.angle()
 	node.position = player.position + dir * 36
-	add_child(node)
 	projectiles.append({ "node": node, "dir": dir, "speed": 620.0, "life": 2.4 })
 	_spawn_ring(node.position, Color("#ff9a32"), 50.0, 0.30, 5.0)
 	_spawn_particles(node.position, Color("#ffb13b"), 6, 70.0)
@@ -535,19 +512,8 @@ func _update_projectiles(delta: float) -> void:
 		projectile_particle_accum = 0.0
 
 func _spawn_enemy_projectile(pos: Vector2, dir: Vector2) -> void:
-	var orb := Node2D.new()
-	orb.position = pos - Vector2(0, 20)
-	var aura := Sprite2D.new()
-	aura.texture = light_texture
-	aura.scale = Vector2(0.28, 0.28)
-	aura.modulate = Color(0.68, 0.18, 1.0, 0.78)
-	orb.add_child(aura)
-	var core := Sprite2D.new()
-	core.texture = light_texture
-	core.scale = Vector2(0.11, 0.11)
-	core.modulate = Color(0.95, 0.72, 1.0, 1.0)
-	orb.add_child(core)
-	add_child(orb)
+	var orb := _spawn_skill_anim(skill_fire_arrow, pos - Vector2(0, 20), 0.18, Color(0.85, 0.55, 1.0, 0.95), true)
+	orb.rotation = dir.angle()
 	enemy_projectiles.append({ "node": orb, "dir": dir, "life": 2.3 })
 
 func _update_enemy_projectiles(delta: float) -> void:
@@ -646,17 +612,14 @@ func _spawn_impact(pos: Vector2, fiery: bool) -> void:
 	var impact_color := Color("#ff8a22") if fiery else Color("#52e8ff")
 	var fx: CanvasItem
 	if fiery:
-		fx = _spawn_energy_burst(pos, impact_color)
+		fx = _spawn_skill_anim(skill_fire_spell, pos, 0.34, Color.WHITE, false)
 	else:
-		fx = _spawn_vfx(1, pos, 0.055)
+		fx = _spawn_skill_anim(skill_water_spell, pos, 0.30, Color.WHITE, false)
 	_spawn_ring(pos, impact_color, 62.0 if fiery else 48.0, 0.34, 5.0)
 	_spawn_ring(pos, Color(1, 1, 1, 0.82), 34.0, 0.20, 2.5)
-	if not fiery:
-		var tw := create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(fx, "scale", Vector2(0.13, 0.13), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(fx, "modulate:a", 0.0, 0.42).set_delay(0.10)
-		tw.tween_callback(func(): fx.queue_free()).set_delay(0.45)
+	var tw := create_tween()
+	tw.tween_property(fx, "modulate:a", 0.0, 0.24).set_delay(0.20)
+	tw.tween_callback(func(): if is_instance_valid(fx): fx.queue_free())
 	_spawn_particles(pos, impact_color, 8 if fiery else 7, 150.0)
 	_flash(Color(impact_color, 0.035), 0.07)
 	_shake(4.0)
@@ -719,6 +682,35 @@ func _update_camera_shake(delta: float) -> void:
 
 func _build_cached_skill_resources() -> void:
 	light_texture = _make_radial_light_texture()
+	skill_water_spell = _load_skill_frames("res://assets/vfx_skill/water_spell", "Water Spell_Frame_", 8, 24.0)
+	skill_fire_spell = _load_skill_frames("res://assets/vfx_skill/fire_spell", "Fire Spell_Frame_", 8, 24.0)
+	skill_water_ball = _load_skill_frames("res://assets/vfx_skill/water_ball", "Water Ball_Frame_", 12, 20.0)
+	skill_fire_ball = _load_skill_frames("res://assets/vfx_skill/fire_ball", "Fire Ball_Frame_", 8, 20.0)
+	skill_fire_arrow = _load_skill_frames("res://assets/vfx_skill/fire_arrow", "Fire Arrow_Frame_", 8, 24.0)
+
+func _load_skill_frames(folder: String, prefix: String, count: int, fps: float) -> SpriteFrames:
+	var frames := SpriteFrames.new()
+	frames.remove_animation("default")
+	frames.add_animation("default")
+	frames.set_animation_speed("default", fps)
+	frames.set_animation_loop("default", true)
+	for i in range(1, count + 1):
+		frames.add_frame("default", _safe_tex("%s/%s%02d.png" % [folder, prefix, i]))
+	return frames
+
+func _spawn_skill_anim(frames: SpriteFrames, pos: Vector2, effect_scale: float, tint: Color, looping: bool) -> AnimatedSprite2D:
+	var sprite := AnimatedSprite2D.new()
+	sprite.sprite_frames = frames
+	sprite.animation = "default"
+	sprite.position = pos
+	sprite.scale = Vector2(effect_scale, effect_scale)
+	sprite.modulate = tint
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	add_child(sprite)
+	sprite.play()
+	if not looping:
+		sprite.animation_finished.connect(func(): if is_instance_valid(sprite): sprite.queue_free())
+	return sprite
 
 func _spawn_energy_burst(pos: Vector2, color: Color) -> Node2D:
 	var holder := Node2D.new()

@@ -40,6 +40,10 @@ export const config = {
   blockfrostApiKey: process.env.BLOCKFROST_API_KEY || '',
   databaseUrl: process.env.DATABASE_URL || '',
   explorerUrl: (txHash) => `${explorerBase}/${txHash}`,
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'https://lab3-godot-cardano-bridge.vercel.app/api/auth/callback/google',
+  googleFrontendUrl: process.env.GOOGLE_FRONTEND_URL || 'https://vercel-game-alpha.vercel.app',
 };
 
 export function validateConfig() {

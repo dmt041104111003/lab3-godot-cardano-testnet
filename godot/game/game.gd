@@ -21,6 +21,7 @@ var fade: ColorRect
 var world: Node2D
 var current_quest := 0
 var run_starting := false
+var google_email := ""
 var in_flow := false
 var flow_quest := 0
 var proof_tx_hash := ""
@@ -49,6 +50,7 @@ func _ready() -> void:
 	_build_fade()
 	_show_screen("menu")
 	_apply_profile_to_ui()
+	call_deferred("_poll_google_login")
 
 func _process(_delta: float) -> void:
 	if world == null or not screens.has("play") or not screens["play"].visible:
@@ -237,6 +239,7 @@ func _build_profile() -> void:
 	v.add_child(ui.profile_balance)
 	var rb := _row()
 	rb.add_child(_button("LOGIN WITH WALLET (CIP-30)", func(): _login_wallet()))
+	rb.add_child(_button("LOGIN WITH GOOGLE", func(): _login_google()))
 	rb.add_child(_button("BACK", func(): _transition_to("menu")))
 	v.add_child(rb)
 	ui.profile_msg = _label("", 11)
@@ -636,6 +639,33 @@ func _login_wallet() -> void:
 	_set_label(ui, "profile_msg", "Connecting wallet...", COLOR_WARN)
 	cip30.connect_wallet(_cb_login_wallet)
 
+func _login_google() -> void:
+	if not OS.has_feature("web"):
+		_set_label(ui, "profile_msg", "Google login is available in the Web build.", COLOR_WARN)
+		return
+	var bridge := "https://lab3-godot-cardano-bridge.vercel.app"
+	JavaScriptBridge.eval("window.location.href=" + JSON.stringify(bridge + "/api/auth/google"))
+
+func _poll_google_login() -> void:
+	if OS.has_feature("web"):
+		var raw: Variant = JavaScriptBridge.eval("(new URLSearchParams(window.location.search)).get('google_user') || ''")
+		if raw != null and str(raw) != "":
+			var decoded: Variant = JavaScriptBridge.eval("(function(s){try{var b=s.replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return decodeURIComponent(escape(atob(b)));}catch(e){return '';}})(" + JSON.stringify(str(raw)) + ")")
+			var data = JSON.parse_string(str(decoded))
+			if data is Dictionary and data.get("email", "") != "":
+				google_email = str(data.get("email"))
+				profile.player_name = str(data.get("name", profile.player_name))
+				profile.save_profile()
+				_apply_profile_to_ui()
+				_set_label(ui, "profile_msg", "Google account connected. Connect a wallet for Cardano actions.", COLOR_OK)
+				JavaScriptBridge.eval("history.replaceState({},'',window.location.pathname)")
+		else:
+			var err: Variant = JavaScriptBridge.eval("(new URLSearchParams(window.location.search)).get('google_error') || ''")
+			if err != null and str(err) != "":
+				_set_label(ui, "profile_msg", "Google login failed: " + str(err), COLOR_ERR)
+				JavaScriptBridge.eval("history.replaceState({},'',window.location.pathname)")
+	get_tree().create_timer(0.5).timeout.connect(_poll_google_login)
+
 func _cb_login_wallet(data) -> void:
 	if not cip30.apply_connect_result(data):
 		_set_label(ui, "profile_msg", "Wallet connect failed", COLOR_ERR)
@@ -685,7 +715,7 @@ func _start_run() -> void:
 	# later on-chain action.
 	if run_starting:
 		return
-	if profile.player_name == "" or profile.address == "":
+	if profile.player_name == "" or (profile.address == "" and google_email == ""):
 		_transition_to("profile")
 		_set_label(ui, "profile_msg", "Create an account with your player name and wallet before playing.", COLOR_WARN)
 		return

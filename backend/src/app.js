@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import crypto from 'node:crypto';
 import { config, validateConfig } from './config.js';
 import { submitProof, txStatus, koiosJson, mintAchievement } from './cardano.js';
 import {
@@ -19,6 +20,53 @@ ensureSchema().catch((err) => console.error('[storage] schema init failed:', err
 export const app = express();
 app.use(cors());
 app.use(express.json({ limit: '64kb' }));
+
+// Google OAuth authorization-code flow for the web game. The client secret
+// is read only from Vercel environment variables; it is never shipped to
+// Godot or exposed in the repository.
+const googleStates = new Map();
+app.get('/api/auth/google', (_req, res) => {
+  if (!config.googleClientId || !config.googleClientSecret) {
+    return res.status(503).json({ ok: false, error: 'Google OAuth is not configured on the server' });
+  }
+  const state = crypto.randomBytes(24).toString('hex');
+  googleStates.set(state, Date.now());
+  const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  u.searchParams.set('client_id', config.googleClientId);
+  u.searchParams.set('redirect_uri', config.googleRedirectUri);
+  u.searchParams.set('response_type', 'code');
+  u.searchParams.set('scope', 'openid email profile');
+  u.searchParams.set('state', state);
+  res.redirect(u.toString());
+});
+
+app.get('/api/auth/callback/google', async (req, res) => {
+  const { code, state, error } = req.query;
+  const fail = (message) => res.redirect(`${config.googleFrontendUrl}/?google_error=${encodeURIComponent(message)}`);
+  if (error) return fail(String(error));
+  if (!code || !state || !googleStates.has(state) || Date.now() - googleStates.get(state) >  tenMinutes()) {
+    return fail('Invalid or expired Google login state');
+  }
+  googleStates.delete(state);
+  try {
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ code: String(code), client_id: config.googleClientId, client_secret: config.googleClientSecret, redirect_uri: config.googleRedirectUri, grant_type: 'authorization_code' }),
+    });
+    const tokens = await tokenResponse.json();
+    if (!tokenResponse.ok || !tokens.id_token) return fail('Google token exchange failed');
+    const infoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokens.id_token)}`);
+    const info = await infoResponse.json();
+    if (!infoResponse.ok || info.aud !== config.googleClientId || info.email_verified !== 'true') return fail('Google account could not be verified');
+    const payload = Buffer.from(JSON.stringify({ email: info.email, name: info.name || info.email.split('@')[0], picture: info.picture || '' })).toString('base64url');
+    res.redirect(`${config.googleFrontendUrl}/?google_user=${payload}`);
+  } catch (err) {
+    console.error('[google] callback failed:', err.message);
+    fail('Google login failed');
+  }
+});
+
+function tenMinutes() { return 10 * 60 * 1000; }
 
 app.get('/health', (_req, res) => {
   res.json({

@@ -60,6 +60,8 @@ var plant_attack: Array[Texture2D] = []
 var plant_dying: Array[Texture2D] = []
 var rock_textures: Array[Texture2D] = []
 var rock_shadow_textures: Array[Texture2D] = []
+var house_details_tex: Texture2D
+var fence_tex: Texture2D
 var fire_tex: Texture2D
 var custom_slash_tex: Texture2D
 var custom_fire_tex: Texture2D
@@ -147,6 +149,8 @@ func _ready() -> void:
 	new_enemy_death = _load_enemy_sequence("death", "Dying", 10)
 	rock_textures = _load_asset_set("res://assets/da/rocks")
 	rock_shadow_textures = _load_asset_set("res://assets/da/shadows")
+	house_details_tex = _safe_tex("res://assets/house/house_details.png")
+	fence_tex = _safe_tex("res://assets/house/walls_floor.png")
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
 	custom_slash_tex = _safe_tex("res://assets/local_pack/skills/arc_slash.png")
 	_build_cached_skill_resources()
@@ -270,7 +274,8 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 	var ponds: Array[Vector2] = []
 	var ruins: Array[Vector2] = []
 	var patches: Array[Vector2] = []
-	var houses: Array[Vector2] = []
+	var houses: Array[Dictionary] = []
+	var fences: Array[Dictionary] = []
 	var rocks: Array[Dictionary] = []
 	var tree_occupied: Array[Vector2] = []
 	for _i in range(rng.randi_range(1, 2)):
@@ -301,11 +306,27 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 		flowers.append(origin + Vector2(rng.randf_range(20, CHUNK_SIZE - 20), rng.randf_range(20, CHUNK_SIZE - 20)))
 	for _i in range(rng.randi_range(1, 2)):
 		patches.append(origin + Vector2(rng.randf_range(60, CHUNK_SIZE - 60), rng.randf_range(60, CHUNK_SIZE - 60)))
+	if rng.randf() < 0.55:
+		var house_placed := false
+		for _attempt in range(40):
+			var house_pos := origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(120, CHUNK_SIZE - 120))
+			var house_clear := true
+			for other in tree_occupied:
+				if house_pos.distance_to(other) < 190.0:
+					house_clear = false
+			if house_clear:
+				var house_scale := rng.randf_range(0.72, 0.88)
+				houses.append({"pos": house_pos, "scale": house_scale})
+				fences.append({"pos": house_pos + Vector2(-110, 58), "length": 5, "scale": house_scale})
+				fences.append({"pos": house_pos + Vector2(110, 58), "length": 5, "scale": house_scale})
+				tree_occupied.append(house_pos)
+				house_placed = true
+				break
 	if rng.randf() < 0.12:
 		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
 	if rng.randf() < 0.05:
 		ruins.append(origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(110, CHUNK_SIZE - 110)))
-	return { "origin": origin, "trees": trees, "rocks": rocks, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "houses": houses, "collision_nodes": [] }
+	return { "origin": origin, "trees": trees, "rocks": rocks, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "houses": houses, "fences": fences, "collision_nodes": [] }
 
 func _install_chunk_collisions(chunk: Dictionary) -> void:
 	for p in chunk.trees:
@@ -314,8 +335,10 @@ func _install_chunk_collisions(chunk: Dictionary) -> void:
 		chunk.collision_nodes.append(_static_circle(p + Vector2(0, 35), 36.0))
 	for rock in chunk.rocks:
 		chunk.collision_nodes.append(_static_circle(rock.pos + Vector2(0, 10), 12.0 * float(rock.scale)))
-	for p in chunk.houses:
-		chunk.collision_nodes.append(_static_box(p + Vector2(0, 12), Vector2(150, 92)))
+	for house in chunk.houses:
+		var p: Vector2 = house.pos
+		var s: float = float(house.scale)
+		chunk.collision_nodes.append(_static_box(p + Vector2(0, 12), Vector2(150, 92) * s))
 
 func _static_circle(pos: Vector2, radius: float) -> StaticBody2D:
 	var body := StaticBody2D.new()
@@ -417,6 +440,18 @@ func _draw() -> void:
 			_draw_shadow(rock_pos + Vector2(0, 13 * rock_scale), 16.0 * rock_scale, Vector2(1.6, 0.5))
 			draw_texture_rect(rock_shadow_textures[rock_variant], Rect2(rock_pos - Vector2(32, 32) * rock_scale, Vector2(64, 64) * rock_scale), false, Color(1, 1, 1, 0.55))
 			draw_texture_rect(rock_textures[rock_variant], Rect2(rock_pos - Vector2(32, 32) * rock_scale, Vector2(64, 64) * rock_scale), false)
+		for house in chunk.houses:
+			var house_pos: Vector2 = house.pos
+			var house_scale: float = float(house.scale)
+			_draw_shadow(house_pos + Vector2(0, 54) * house_scale, 48.0 * house_scale, Vector2(1.7, 0.48))
+			draw_texture_rect_region(house_details_tex, Rect2(house_pos + Vector2(-80, -38) * house_scale, Vector2(160, 80) * house_scale), Rect2(0, 0, 160, 80))
+			draw_texture_rect_region(house_details_tex, Rect2(house_pos + Vector2(-80, -112) * house_scale, Vector2(160, 100) * house_scale), Rect2(0, 80, 160, 100))
+		for fence in chunk.fences:
+			var fence_pos: Vector2 = fence.pos
+			var fence_scale: float = float(fence.scale)
+			for fence_i in range(int(fence.length)):
+				var fp := fence_pos + Vector2(fence_i * 36.0 * fence_scale, 0)
+				draw_texture_rect_region(fence_tex, Rect2(fp - Vector2(14, 20) * fence_scale, Vector2(28, 40) * fence_scale), Rect2(0, 0, 48, 64))
 	# Quest actors use the actual repository sprites.
 	for m in monsters:
 		var kind: int = int(m.get("kind", 0))

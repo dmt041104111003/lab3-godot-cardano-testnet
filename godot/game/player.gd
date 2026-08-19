@@ -32,8 +32,11 @@ func _build_animations() -> void:
 	var sf := SpriteFrames.new()
 	var idle_tex := _safe_tex("res://assets/local_pack/characters/hero_idle.png")
 	var walk_tex := _safe_tex("res://assets/local_pack/characters/hero_walk.png")
+	# Runtime-facing order verified in game: front, left, right, back.
+	# Each visible 32px frame spans two 16px tiles in the source atlas.
+	var direction_rows := {"down": 0, "left": 1, "right": 2, "up": 3}
 	for direction in ["down", "right", "left", "up"]:
-		var row: int = ["down", "right", "left", "up"].find(direction)
+		var row: int = int(direction_rows[direction])
 		var idle_name: String = "idle_" + direction
 		var run_name: String = "run_" + direction
 		sf.add_animation(idle_name)
@@ -57,12 +60,21 @@ func _atlas_frame(texture: Texture2D, column: int, row: int) -> AtlasTexture:
 	frame.region = Rect2(column * 32, row * 32, 32, 32)
 	return frame
 
-func _physics_process(delta: float) -> void:
-	var dir := Vector2(
+func _physics_process(_delta: float) -> void:
+	var raw_dir := Vector2(
 		Input.get_axis("ui_left", "ui_right"),
 		Input.get_axis("ui_up", "ui_down"),
 	)
-	velocity = dir.normalized() * SPEED
+	# This game uses four-direction art. Resolve simultaneous/stale browser input
+	# to one dominant axis so vertical movement can never display as diagonal.
+	var dir := Vector2.ZERO
+	if absf(raw_dir.x) > absf(raw_dir.y):
+		dir.x = signf(raw_dir.x)
+	elif raw_dir.y != 0.0:
+		dir.y = signf(raw_dir.y)
+	elif raw_dir.x != 0.0:
+		dir.x = signf(raw_dir.x)
+	velocity = dir * SPEED
 	moving = velocity.length() > 10.0
 	if dir.x != 0:
 		facing = Vector2(signf(dir.x), 0)

@@ -109,6 +109,7 @@ func _centered_label(text: String, size: int, color: Color = Color.WHITE) -> Lab
 func _button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
+	b.custom_minimum_size = Vector2(0, 74)
 	b.pressed.connect(cb)
 	return b
 
@@ -156,7 +157,7 @@ func _build_menu() -> void:
 	panel.custom_minimum_size = Vector2(560, 620)
 	root.add_child(panel)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 14)
+	v.add_theme_constant_override("separation", 8)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	panel.add_child(v)
 	var eyebrow := _centered_label("ON-CHAIN ADVENTURE", 11, Color("#73f7de"))
@@ -168,7 +169,7 @@ func _build_menu() -> void:
 	hero_atlas.atlas = load("res://assets/local_pack/characters/hero_idle.png")
 	hero_atlas.region = Rect2(0, 0, 32, 32)
 	hero.texture = hero_atlas
-	hero.custom_minimum_size = Vector2(128, 128)
+	hero.custom_minimum_size = Vector2(88, 88)
 	hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST

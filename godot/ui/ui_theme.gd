@@ -12,18 +12,18 @@ func _ready() -> void:
 	theme.default_font_size = 12
 
 	var b_n := StyleBoxTexture.new()
-	b_n.texture = load("res://assets/local_pack/ui/button_green.png")
-	b_n.set_texture_margin_all(14)
-	b_n.content_margin_left = 18
-	b_n.content_margin_right = 18
-	b_n.content_margin_top = 11
-	b_n.content_margin_bottom = 11
+	b_n.texture = load("res://assets/local_pack/ui/button_shop_wide.png")
+	b_n.set_texture_margin_all(34)
+	b_n.content_margin_left = 42
+	b_n.content_margin_right = 28
+	b_n.content_margin_top = 18
+	b_n.content_margin_bottom = 18
 	theme.set_stylebox("normal", "Button", b_n)
 	var b_h := b_n.duplicate()
-	b_h.modulate_color = Color(1.12, 1.12, 1.12)
+	b_h.modulate_color = Color(1.10, 1.10, 1.04)
 	theme.set_stylebox("hover", "Button", b_h)
 	var b_p := b_n.duplicate()
-	b_p.texture = load("res://assets/local_pack/ui/button_green_pressed.png")
+	b_p.modulate_color = Color(0.72, 0.82, 0.72)
 	theme.set_stylebox("pressed", "Button", b_p)
 	var b_d := b_n.duplicate()
 	b_d.modulate_color = Color(0.45, 0.45, 0.45)
@@ -37,10 +37,10 @@ func _ready() -> void:
 	var pn := StyleBoxFlat.new()
 	pn.bg_color = Color(0.025, 0.055, 0.10, 0.94)
 	pn.set_corner_radius_all(18)
-	pn.border_color = Color(0.20, 0.76, 0.70, 0.7)
-	pn.set_border_width_all(1)
-	pn.shadow_color = Color(0, 0, 0, 0.55)
-	pn.shadow_size = 18
+	pn.border_color = Color(0.55, 0.85, 0.30, 0.75)
+	pn.set_border_width_all(2)
+	pn.shadow_color = Color(0, 0, 0, 0.62)
+	pn.shadow_size = 20
 	pn.content_margin_left = 34
 	pn.content_margin_right = 34
 	pn.content_margin_top = 28

@@ -23,6 +23,10 @@ var monsters: Array[Dictionary] = []
 var other_players := {}
 var skill1_cd := 0.0
 var skill2_cd := 0.0
+var skill3_cd := 0.0
+var skill4_cd := 0.0
+var skill5_cd := 0.0
+var skill6_cd := 0.0
 var time := 0.0
 var presence_t := 0.0
 var projectiles: Array[Dictionary] = []
@@ -62,6 +66,10 @@ var skill_fire_spell: SpriteFrames
 var skill_water_ball: SpriteFrames
 var skill_fire_ball: SpriteFrames
 var skill_fire_arrow: SpriteFrames
+var skill_thunder: SpriteFrames
+var skill_ice_ring: SpriteFrames
+var skill_poison_cloud: SpriteFrames
+var skill_meteor: SpriteFrames
 var chest_tex: Texture2D
 var slash_textures: Array[Texture2D] = []
 var hero_idle_tex: Texture2D
@@ -150,6 +158,10 @@ func _process(delta: float) -> void:
 	_update_aim()
 	skill1_cd = maxf(skill1_cd - delta, 0.0)
 	skill2_cd = maxf(skill2_cd - delta, 0.0)
+	skill3_cd = maxf(skill3_cd - delta, 0.0)
+	skill4_cd = maxf(skill4_cd - delta, 0.0)
+	skill5_cd = maxf(skill5_cd - delta, 0.0)
+	skill6_cd = maxf(skill6_cd - delta, 0.0)
 	player_hit_cd = maxf(player_hit_cd - delta, 0.0)
 	_wander_monsters(delta)
 	_update_light()
@@ -510,6 +522,14 @@ func _handle_skills() -> void:
 		try_cast_skill(1)
 	if Input.is_action_just_pressed("skill_2"):
 		try_cast_skill(2)
+	if Input.is_action_just_pressed("skill_3"):
+		try_cast_skill(3)
+	if Input.is_action_just_pressed("skill_4"):
+		try_cast_skill(4)
+	if Input.is_action_just_pressed("skill_5"):
+		try_cast_skill(5)
+	if Input.is_action_just_pressed("skill_6"):
+		try_cast_skill(6)
 
 func try_cast_skill(index: int) -> bool:
 	if index == 1 and skill1_cd <= 0.0:
@@ -522,7 +542,35 @@ func try_cast_skill(index: int) -> bool:
 		player.show_attack(0.24)
 		_cast_fireball()
 		return true
+	if index >= 3 and index <= 6:
+		var ready := [false, false, skill3_cd <= 0.0, skill4_cd <= 0.0, skill5_cd <= 0.0, skill6_cd <= 0.0]
+		if not ready[index]:
+			return false
+		var target: Vector2 = aim_world if aim_world.distance_to(player.position) > 10.0 else player.position + player.facing * 260.0
+		match index:
+			3:
+				skill3_cd = 1.0
+				_spawn_area_skill(skill_thunder, target, Color("#b9c7ff"), 78.0, 0.62, 2 + damage_bonus)
+			4:
+				skill4_cd = 1.1
+				_spawn_area_skill(skill_ice_ring, target, Color("#67e8f9"), 105.0, 0.62, 2 + damage_bonus)
+			5:
+				skill5_cd = 1.35
+				_spawn_area_skill(skill_poison_cloud, target, Color("#b4f25a"), 120.0, 0.62, 2 + damage_bonus)
+			6:
+				skill6_cd = 1.8
+				_spawn_area_skill(skill_meteor, target, Color("#ffbd69"), 135.0, 0.68, 3 + damage_bonus)
+		return true
 	return false
+
+func _spawn_area_skill(frames: SpriteFrames, target: Vector2, tint: Color, radius: float, effect_scale: float, damage: int) -> void:
+	_spawn_skill_anim(frames, target, effect_scale, tint, false)
+	for m in monsters.duplicate():
+		if (m.pos as Vector2).distance_to(target) <= radius:
+			_damage_monster(m, damage)
+	_spawn_ring(target, tint, radius, 0.28, 4.0)
+	_flash(Color(tint, 0.08), 0.10)
+	_shake(4.0)
 
 func _cast_slash() -> void:
 	var dir: Vector2 = player.facing
@@ -751,6 +799,10 @@ func _build_cached_skill_resources() -> void:
 	skill_water_ball = _load_skill_frames("res://assets/vfx_skill/water_ball", "Water Ball_Frame_", 12, 20.0)
 	skill_fire_ball = _load_skill_frames("res://assets/vfx_skill/fire_ball", "Fire Ball_Frame_", 8, 20.0)
 	skill_fire_arrow = _load_skill_frames("res://assets/vfx_skill/fire_arrow", "Fire Arrow_Frame_", 8, 24.0)
+	skill_thunder = _load_numbered_skill_frames("lightning", "Lightning_cycle", 6, 24.0)
+	skill_ice_ring = _load_numbered_skill_frames("explosion_blue_circle", "Explosion_blue_circle", 10, 24.0)
+	skill_poison_cloud = _load_numbered_skill_frames("explosion_gas_circle", "Explosion_gas_circle", 10, 20.0)
+	skill_meteor = _load_numbered_skill_frames("nuclear_explosion", "Nuclear_explosion", 10, 20.0)
 
 func _load_skill_frames(folder: String, prefix: String, count: int, fps: float) -> SpriteFrames:
 	var frames := SpriteFrames.new()
@@ -760,6 +812,16 @@ func _load_skill_frames(folder: String, prefix: String, count: int, fps: float) 
 	frames.set_animation_loop("default", true)
 	for i in range(1, count + 1):
 		frames.add_frame("default", _safe_tex("%s/%s%02d.png" % [folder, prefix, i]))
+	return frames
+
+func _load_numbered_skill_frames(folder: String, prefix: String, count: int, fps: float) -> SpriteFrames:
+	var frames := SpriteFrames.new()
+	frames.remove_animation("default")
+	frames.add_animation("default")
+	frames.set_animation_speed("default", fps)
+	frames.set_animation_loop("default", false)
+	for i in range(1, count + 1):
+		frames.add_frame("default", _safe_tex("res://assets/skill/%s/%s%d.png" % [folder, prefix, i]))
 	return frames
 
 func _spawn_skill_anim(frames: SpriteFrames, pos: Vector2, effect_scale: float, tint: Color, looping: bool) -> AnimatedSprite2D:

@@ -84,6 +84,10 @@ func _ensure_input() -> void:
 	_add_key("ui_accept", KEY_SPACE)
 	_add_key("skill_1", KEY_J)
 	_add_key("skill_2", KEY_K)
+	_add_key("skill_3", KEY_U)
+	_add_key("skill_4", KEY_L)
+	_add_key("skill_5", KEY_O)
+	_add_key("skill_6", KEY_P)
 	_add_key("inventory", KEY_I)
 
 func _add_key(action: String, key: Key) -> void:
@@ -337,22 +341,35 @@ func _build_play() -> void:
 	skills.anchor_right = 0.5
 	skills.anchor_top = 1.0
 	skills.anchor_bottom = 1.0
-	skills.offset_left = -109
-	skills.offset_top = -116
-	skills.offset_right = 109
+	skills.offset_left = -325
+	skills.offset_top = -126
+	skills.offset_right = 325
 	skills.offset_bottom = -10
 	skills.add_theme_constant_override("separation", 10)
 	hud_root.add_child(skills)
 	var slash_icon: Texture2D = load("res://assets/vfx_skill/icons/Icons_Water Spell.png")
 	var fire_icon: Texture2D = load("res://assets/vfx_skill/icons/Icons_Fire Spell.png")
+	var thunder_icon: Texture2D = load("res://assets/skill/icons/Icon1.png")
+	var ice_icon: Texture2D = load("res://assets/skill/icons/Icon2.png")
+	var poison_icon: Texture2D = load("res://assets/skill/icons/Icon6.png")
+	var meteor_icon: Texture2D = load("res://assets/skill/icons/Icon10.png")
 	var slash_card := _skill_card("J", "ARC SLASH", Color("#53dcff"), slash_icon, func(): _activate_skill(1))
 	var fire_card := _skill_card("K", "NOVA BURST", Color("#ff9d38"), fire_icon, func(): _activate_skill(2))
+	var thunder_card := _skill_card("U", "THUNDER", Color("#b9c7ff"), thunder_icon, func(): _activate_skill(3))
+	var ice_card := _skill_card("L", "ICE RING", Color("#67e8f9"), ice_icon, func(): _activate_skill(4))
+	var poison_card := _skill_card("O", "POISON", Color("#b4f25a"), poison_icon, func(): _activate_skill(5))
+	var meteor_card := _skill_card("P", "METEOR", Color("#ffbd69"), meteor_icon, func(): _activate_skill(6))
 	skills.add_child(slash_card.card)
 	skills.add_child(fire_card.card)
+	skills.add_child(thunder_card.card)
+	skills.add_child(ice_card.card)
+	skills.add_child(poison_card.card)
+	skills.add_child(meteor_card.card)
 	ui.skill_slash = slash_card.status
 	ui.skill_fire = fire_card.status
 	ui.skill_slash_card = slash_card.card
 	ui.skill_fire_card = fire_card.card
+	ui.skill_cards = [null, slash_card.card, fire_card.card, thunder_card.card, ice_card.card, poison_card.card, meteor_card.card]
 	var flow := PanelContainer.new()
 	flow.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	flow.offset_left = -510
@@ -480,7 +497,7 @@ func _activate_skill(index: int) -> void:
 	if world == null or not screens["play"].visible:
 		return
 	if world.try_cast_skill(index):
-		var card: Button = ui.skill_slash_card if index == 1 else ui.skill_fire_card
+		var card: Button = ui.skill_cards[index] if ui.has("skill_cards") else (ui.skill_slash_card if index == 1 else ui.skill_fire_card)
 		var tween := create_tween()
 		tween.tween_property(card, "scale", Vector2(0.92, 0.92), 0.06)
 		tween.tween_property(card, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

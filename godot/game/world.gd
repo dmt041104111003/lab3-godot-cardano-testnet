@@ -33,6 +33,14 @@ var grass: Texture2D
 var grass2: Texture2D
 var bush_tex: Texture2D
 var vfx_tex: Texture2D
+var nature_tex: Texture2D
+var terrain_tex: Texture2D
+var props_tex: Texture2D
+var enemy_tex: Texture2D
+var fire_tex: Texture2D
+var chest_tex: Texture2D
+var slash_textures: Array[Texture2D] = []
+var hero_idle_tex: Texture2D
 var shake_strength := 0.0
 var map_rng := RandomNumberGenerator.new()
 var map_seed := 0
@@ -57,14 +65,16 @@ func _safe_tex(path: String) -> Texture2D:
 	return t
 
 func _ready() -> void:
-	coin_tex = _safe_tex("res://assets/items/coinGold.png")
-	slime1 = _safe_tex("res://assets/enemies/slimeWalk1.png")
-	slime2 = _safe_tex("res://assets/enemies/slimeWalk2.png")
-	grass = _safe_tex("res://assets/tiles/grassMid.png")
-	grass2 = _safe_tex("res://assets/tiles/grassHalfMid.png")
-	bush_tex = _safe_tex("res://assets/background/bush.png")
-	sign_tex = _safe_tex("res://assets/tiles/signExit.png")
-	vfx_tex = _safe_tex("res://assets/effects/magic_vfx_sheet.png")
+	coin_tex = _safe_tex("res://assets/local_pack/ui/coin.png")
+	nature_tex = _safe_tex("res://assets/local_pack/world/nature.png")
+	terrain_tex = _safe_tex("res://assets/local_pack/world/terrain.png")
+	props_tex = _safe_tex("res://assets/local_pack/world/props.png")
+	enemy_tex = _safe_tex("res://assets/local_pack/characters/enemy_walk.png")
+	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")
+	chest_tex = _safe_tex("res://assets/local_pack/world/chest.png")
+	hero_idle_tex = _safe_tex("res://assets/local_pack/characters/hero_idle.png")
+	for i in range(4):
+		slash_textures.append(_safe_tex("res://assets/local_pack/vfx/slash_%d.png" % i))
 	_generate_map()
 	_build_arena()
 	_build_coins()
@@ -138,13 +148,16 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 	var trees: Array[Vector2] = []
 	var flowers: Array[Vector2] = []
 	var ponds: Array[Vector2] = []
+	var ruins: Array[Vector2] = []
 	for _i in range(rng.randi_range(4, 9)):
 		trees.append(origin + Vector2(rng.randf_range(48, CHUNK_SIZE - 48), rng.randf_range(48, CHUNK_SIZE - 48)))
 	for _i in range(rng.randi_range(8, 18)):
 		flowers.append(origin + Vector2(rng.randf_range(20, CHUNK_SIZE - 20), rng.randf_range(20, CHUNK_SIZE - 20)))
 	if rng.randf() < 0.28:
 		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
-	return { "origin": origin, "trees": trees, "flowers": flowers, "ponds": ponds, "tone": rng.randf_range(-0.025, 0.025) }
+	if rng.randf() < 0.18:
+		ruins.append(origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(110, CHUNK_SIZE - 110)))
+	return { "origin": origin, "trees": trees, "flowers": flowers, "ponds": ponds, "ruins": ruins, "tone": rng.randf_range(-0.025, 0.025) }
 
 func _generate_map() -> void:
 	# A fresh deterministic layout is created every time World is instantiated.
@@ -201,23 +214,31 @@ func _draw() -> void:
 	for chunk in active_chunks.values():
 		var origin: Vector2 = chunk.origin
 		var tone: float = chunk.tone
-		draw_rect(Rect2(origin, Vector2(CHUNK_SIZE, CHUNK_SIZE)), Color(0.19 + tone, 0.37 + tone, 0.30 + tone))
+		draw_rect(Rect2(origin, Vector2(CHUNK_SIZE, CHUNK_SIZE)), Color(0.17 + tone, 0.30 + tone, 0.21 + tone))
+		for tx in range(0, CHUNK_SIZE, 64):
+			for ty in range(0, CHUNK_SIZE, 64):
+				draw_texture_rect_region(terrain_tex, Rect2(origin + Vector2(tx, ty), Vector2(64, 64)), Rect2(0, 0, 48, 48))
 		for p in chunk.ponds:
 			draw_circle(p, 58, Color("#285b68"))
 			draw_circle(p, 49, Color("#367b8a"))
+		for p in chunk.ruins:
+			draw_texture_rect_region(props_tex, Rect2(p - Vector2(88, 72), Vector2(176, 144)), Rect2(0, 0, 176, 144))
 		for p in chunk.flowers:
 			draw_circle(p, 2.5, Color("#d5e889") if int(p.x + p.y) % 2 == 0 else Color("#f2c879"))
 		for p in chunk.trees:
 			draw_circle(p + Vector2(4, 8), 25, Color(0, 0, 0, 0.16))
-			draw_texture_rect(bush_tex, Rect2(p - Vector2(28, 28), Vector2(56, 56)), false)
+			var tree_variant: int = abs(int(p.x + p.y)) % 3
+			var src: Rect2 = [Rect2(0, 0, 64, 96), Rect2(64, 0, 64, 96), Rect2(128, 64, 64, 64)][tree_variant]
+			draw_texture_rect_region(nature_tex, Rect2(p - Vector2(34, 62), Vector2(68, 96)), src)
 	# Quest actors use the actual repository sprites.
 	for m in monsters:
-		var slime := slime1 if int(time * 7.0) % 2 == 0 else slime2
-		draw_texture_rect(slime, Rect2(m.pos - Vector2(28, 38), Vector2(56, 56)), false)
+		var frame := int(time * 8.0) % 6
+		var row := 1 if m.dir.x >= 0 else 2
+		draw_texture_rect_region(enemy_tex, Rect2(m.pos - Vector2(28, 46), Vector2(56, 56)), Rect2(frame * 32, row * 32, 32, 32))
 	# gate glow
 	draw_circle(gate_position, 30, Color(0.3, 0.9, 0.45, 0.4))
 	draw_circle(gate_position, 18, Color(0.35, 0.95, 0.5))
-	draw_texture_rect(sign_tex, Rect2(gate_position - Vector2(32, 62), Vector2(64, 64)), false)
+	draw_texture_rect_region(chest_tex, Rect2(gate_position - Vector2(28, 46), Vector2(56, 72)), Rect2(0, 0, 40, 48))
 
 # ---------------------------------------------------------------------------
 # Coins / monsters / gate
@@ -306,7 +327,7 @@ func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
 	var node := Node2D.new()
 	var col := _vfx_sprite(2)
-	col.scale = Vector2(0.075, 0.075)
+	col.scale = Vector2(1.45, 1.45)
 	col.rotation = dir.angle()
 	node.add_child(col)
 	var trail := Line2D.new()
@@ -373,12 +394,14 @@ func _damage_monster(m: Dictionary, dmg: int) -> void:
 		monsters_killed.emit(monsters_left)
 
 func _vfx_sprite(cell: int) -> Sprite2D:
-	var atlas := AtlasTexture.new()
-	atlas.atlas = vfx_tex
-	var half := Vector2(vfx_tex.get_width() / 2.0, vfx_tex.get_height() / 2.0)
-	atlas.region = Rect2(Vector2((cell % 2) * half.x, (cell / 2) * half.y), half)
 	var sprite := Sprite2D.new()
-	sprite.texture = atlas
+	if cell == 2:
+		var atlas := AtlasTexture.new()
+		atlas.atlas = fire_tex
+		atlas.region = Rect2((int(time * 10.0) % 4) * 32, 0, 32, 32)
+		sprite.texture = atlas
+	else:
+		sprite.texture = slash_textures[clampi(cell, 0, 3)]
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	return sprite
 
@@ -472,9 +495,13 @@ func _cb_presence(result: int, code: int, data) -> void:
 		else:
 			var holder := Node2D.new()
 			var s := Sprite2D.new()
-			s.texture = _safe_tex("res://assets/player/alienBlue_stand.png")
-			s.scale = Vector2(0.9, 0.9)
-			s.position = Vector2(0, -30)
+			var other_atlas := AtlasTexture.new()
+			other_atlas.atlas = hero_idle_tex
+			other_atlas.region = Rect2(0, 0, 32, 32)
+			s.texture = other_atlas
+			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			s.scale = Vector2(2.0, 2.0)
+			s.position = Vector2(0, -18)
 			holder.add_child(s)
 			var name_l := Label.new()
 			name_l.text = str(p.get("name", "Player"))

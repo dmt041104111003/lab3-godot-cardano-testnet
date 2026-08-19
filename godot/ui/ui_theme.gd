@@ -11,26 +11,22 @@ func _ready() -> void:
 		theme.default_font = font
 	theme.default_font_size = 12
 
-	var b_n := StyleBoxFlat.new()
-	b_n.bg_color = Color("#126e73")
-	b_n.set_corner_radius_all(10)
-	b_n.border_color = Color("#4de6cb")
-	b_n.set_border_width_all(1)
+	var b_n := StyleBoxTexture.new()
+	b_n.texture = load("res://assets/local_pack/ui/button_green.png")
+	b_n.set_texture_margin_all(14)
 	b_n.content_margin_left = 18
 	b_n.content_margin_right = 18
 	b_n.content_margin_top = 11
 	b_n.content_margin_bottom = 11
 	theme.set_stylebox("normal", "Button", b_n)
 	var b_h := b_n.duplicate()
-	b_h.bg_color = Color("#1b9c8f")
-	b_h.border_color = Color("#d4fff6")
+	b_h.modulate_color = Color(1.12, 1.12, 1.12)
 	theme.set_stylebox("hover", "Button", b_h)
 	var b_p := b_n.duplicate()
-	b_p.bg_color = Color(0.08, 0.35, 0.32)
+	b_p.texture = load("res://assets/local_pack/ui/button_green_pressed.png")
 	theme.set_stylebox("pressed", "Button", b_p)
 	var b_d := b_n.duplicate()
-	b_d.bg_color = Color(0.15, 0.18, 0.2)
-	b_d.border_color = Color(0.3, 0.35, 0.4)
+	b_d.modulate_color = Color(0.45, 0.45, 0.45)
 	theme.set_stylebox("disabled", "Button", b_d)
 	theme.set_color("font_color", "Button", Color.WHITE)
 	theme.set_color("font_hover_color", "Button", Color(1, 1, 1))

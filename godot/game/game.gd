@@ -162,7 +162,10 @@ func _build_menu() -> void:
 	v.add_child(_centered_label("CATALYST", 42, Color("#f4fbff")))
 	v.add_child(_centered_label("QUEST", 30, Color("#ffd166")))
 	var hero := TextureRect.new()
-	hero.texture = load("res://assets/player/alienBlue_stand.png")
+	var hero_atlas := AtlasTexture.new()
+	hero_atlas.atlas = load("res://assets/local_pack/characters/hero_idle.png")
+	hero_atlas.region = Rect2(0, 0, 32, 32)
+	hero.texture = hero_atlas
 	hero.custom_minimum_size = Vector2(128, 128)
 	hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -277,16 +280,18 @@ func _build_play() -> void:
 	skills.offset_bottom = -18
 	skills.add_theme_constant_override("separation", 10)
 	s.add_child(skills)
-	ui.skill_slash = _skill_card("J\nSLASH\nREADY", Color("#43d9e6"))
-	ui.skill_fire = _skill_card("K\nFIREBALL\nREADY", Color("#ff9f43"))
+	ui.skill_slash = _skill_card("J\nSLASH\nREADY", Color("#43d9e6"), load("res://assets/local_pack/ui/skill_slash.png"))
+	ui.skill_fire = _skill_card("K\nFIREBALL\nREADY", Color("#ff9f43"), load("res://assets/local_pack/ui/skill_fire.png"))
 	skills.add_child(ui.skill_slash)
 	skills.add_child(ui.skill_fire)
 
-func _skill_card(text: String, accent: Color) -> Button:
+func _skill_card(text: String, accent: Color, icon: Texture2D) -> Button:
 	var card := Button.new()
 	card.text = text
 	card.custom_minimum_size = Vector2(138, 96)
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.icon = icon
+	card.expand_icon = true
 	card.add_theme_color_override("font_color", accent)
 	card.add_theme_font_size_override("font_size", 10)
 	return card

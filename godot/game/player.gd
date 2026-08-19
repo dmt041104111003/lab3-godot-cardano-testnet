@@ -18,7 +18,7 @@ func _ready() -> void:
 	shape.shape = rect
 	shape.position = Vector2(0, -10)
 	add_child(shape)
-	anim.play("idle")
+	anim.play("idle_down")
 
 func _safe_tex(path: String) -> Texture2D:
 	var t = load(path)
@@ -30,19 +30,32 @@ func _safe_tex(path: String) -> Texture2D:
 
 func _build_animations() -> void:
 	var sf := SpriteFrames.new()
-	var stand := _safe_tex("res://assets/player/alienBlue_stand.png")
-	var walk1 := _safe_tex("res://assets/player/alienBlue_walk1.png")
-	var walk2 := _safe_tex("res://assets/player/alienBlue_walk2.png")
-	sf.add_animation("idle")
-	sf.add_frame("idle", stand)
-	sf.set_animation_speed("idle", 1.0)
-	sf.add_animation("run")
-	sf.add_frame("run", walk1)
-	sf.add_frame("run", walk2)
-	sf.set_animation_speed("run", 12.0)
+	var idle_tex := _safe_tex("res://assets/local_pack/characters/hero_idle.png")
+	var walk_tex := _safe_tex("res://assets/local_pack/characters/hero_walk.png")
+	for direction in ["down", "right", "left", "up"]:
+		var row: int = ["down", "right", "left", "up"].find(direction)
+		var idle_name: String = "idle_" + direction
+		var run_name: String = "run_" + direction
+		sf.add_animation(idle_name)
+		for frame in range(6):
+			sf.add_frame(idle_name, _atlas_frame(idle_tex, frame, row))
+		sf.set_animation_speed(idle_name, 6.0)
+		sf.set_animation_loop(idle_name, true)
+		sf.add_animation(run_name)
+		for frame in range(6):
+			sf.add_frame(run_name, _atlas_frame(walk_tex, frame, row))
+		sf.set_animation_speed(run_name, 10.0)
+		sf.set_animation_loop(run_name, true)
 	anim.sprite_frames = sf
-	anim.offset = Vector2(0, -30)
-	anim.scale = Vector2(1.2, 1.2)
+	anim.offset = Vector2(0, -18)
+	anim.scale = Vector2(2.0, 2.0)
+	anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+func _atlas_frame(texture: Texture2D, column: int, row: int) -> AtlasTexture:
+	var frame := AtlasTexture.new()
+	frame.atlas = texture
+	frame.region = Rect2(column * 32, row * 32, 32, 32)
+	return frame
 
 func _physics_process(delta: float) -> void:
 	var dir := Vector2(
@@ -56,10 +69,9 @@ func _physics_process(delta: float) -> void:
 	elif dir.y != 0:
 		facing = Vector2(0, signf(dir.y))
 	move_and_slide()
-	if moving:
-		anim.play("run")
-	else:
-		anim.play("idle")
-	# face the movement direction
-	if absf(facing.x) > 0.1:
-		anim.flip_h = facing.x < 0
+	var direction := "down"
+	if absf(facing.x) > absf(facing.y):
+		direction = "right" if facing.x > 0 else "left"
+	elif facing.y < 0:
+		direction = "up"
+	anim.play(("run_" if moving else "idle_") + direction)

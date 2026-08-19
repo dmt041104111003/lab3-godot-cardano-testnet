@@ -468,7 +468,7 @@ func _cast_slash() -> void:
 	var end: Vector2 = player.position + dir * 430
 	_spawn_ring(start, Color("#64efff"), 54.0, 0.24, 4.0)
 	_spawn_direction_streak(player.position, dir, 440.0, Color(0.25, 0.92, 1.0, 0.72), 0.18)
-	var wave := _spawn_skill_anim(skill_water_spell, start, 0.42, Color(0.55, 0.95, 1.0, 0.98), false)
+	var wave := _spawn_skill_anim(skill_water_spell, start, 0.055, Color(0.55, 0.95, 1.0, 0.98), false)
 	wave.rotation = dir.angle()
 	var tw := create_tween()
 	tw.tween_property(wave, "position", end, 0.20).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
@@ -480,10 +480,10 @@ func _cast_slash() -> void:
 
 func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
-	var node := _spawn_skill_anim(skill_fire_ball, player.position + dir * 36, 0.19, Color.WHITE, true)
+	var node := _spawn_skill_anim(skill_fire_ball, player.position + dir * 36, 0.032, Color.WHITE, true)
 	node.rotation = dir.angle()
 	node.position = player.position + dir * 36
-	projectiles.append({ "node": node, "dir": dir, "speed": 620.0, "life": 2.4 })
+	projectiles.append({ "node": node, "dir": dir, "speed": 620.0, "life": 2.4, "base_scale": 0.032 })
 	_spawn_ring(node.position, Color("#ff9a32"), 50.0, 0.30, 5.0)
 	_spawn_particles(node.position, Color("#ffb13b"), 6, 70.0)
 	_flash(Color(1.0, 0.35, 0.05, 0.055), 0.09)
@@ -500,7 +500,8 @@ func _update_projectiles(delta: float) -> void:
 		var node: Node2D = p.node
 		node.position += (p.dir as Vector2) * (p.speed as float) * delta
 		var pulse := 1.0 + sin(time * 18.0) * 0.055
-		node.scale = Vector2(pulse, pulse)
+		var projectile_scale: float = float(p.get("base_scale", 0.032))
+		node.scale = Vector2(projectile_scale * pulse, projectile_scale * pulse)
 		for m in monsters.duplicate():
 			if node.position.distance_to(m.pos) < 30:
 				_damage_monster(m, 1 + damage_bonus)
@@ -512,9 +513,9 @@ func _update_projectiles(delta: float) -> void:
 		projectile_particle_accum = 0.0
 
 func _spawn_enemy_projectile(pos: Vector2, dir: Vector2) -> void:
-	var orb := _spawn_skill_anim(skill_fire_arrow, pos - Vector2(0, 20), 0.18, Color(0.85, 0.55, 1.0, 0.95), true)
+	var orb := _spawn_skill_anim(skill_fire_arrow, pos - Vector2(0, 20), 0.034, Color(0.85, 0.55, 1.0, 0.95), true)
 	orb.rotation = dir.angle()
-	enemy_projectiles.append({ "node": orb, "dir": dir, "life": 2.3 })
+	enemy_projectiles.append({ "node": orb, "dir": dir, "life": 2.3, "base_scale": 0.034 })
 
 func _update_enemy_projectiles(delta: float) -> void:
 	for shot in enemy_projectiles.duplicate():
@@ -522,7 +523,8 @@ func _update_enemy_projectiles(delta: float) -> void:
 		var orb: Node2D = shot.node
 		orb.position += (shot.dir as Vector2) * 330.0 * delta
 		var pulse := 1.0 + sin(time * 22.0) * 0.08
-		orb.scale = Vector2(pulse, pulse)
+		var enemy_scale: float = float(shot.get("base_scale", 0.034))
+		orb.scale = Vector2(enemy_scale * pulse, enemy_scale * pulse)
 		if shot.life <= 0.0:
 			enemy_projectiles.erase(shot)
 			orb.queue_free()
@@ -612,9 +614,9 @@ func _spawn_impact(pos: Vector2, fiery: bool) -> void:
 	var impact_color := Color("#ff8a22") if fiery else Color("#52e8ff")
 	var fx: CanvasItem
 	if fiery:
-		fx = _spawn_skill_anim(skill_fire_spell, pos, 0.34, Color.WHITE, false)
+		fx = _spawn_skill_anim(skill_fire_spell, pos, 0.10, Color.WHITE, false)
 	else:
-		fx = _spawn_skill_anim(skill_water_spell, pos, 0.30, Color.WHITE, false)
+		fx = _spawn_skill_anim(skill_water_spell, pos, 0.09, Color.WHITE, false)
 	_spawn_ring(pos, impact_color, 62.0 if fiery else 48.0, 0.34, 5.0)
 	_spawn_ring(pos, Color(1, 1, 1, 0.82), 34.0, 0.20, 2.5)
 	var tw := create_tween()

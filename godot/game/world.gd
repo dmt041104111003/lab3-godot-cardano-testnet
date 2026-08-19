@@ -25,6 +25,8 @@ var skill2_cd := 0.0
 var time := 0.0
 var presence_t := 0.0
 var projectiles: Array[Dictionary] = []
+var enemy_projectiles: Array[Dictionary] = []
+var dying_monsters: Array[Dictionary] = []
 
 var coin_tex: Texture2D
 var slime1: Texture2D
@@ -59,6 +61,7 @@ var sign_tex: Texture2D
 var redraw_accum := 0.0
 var projectile_particle_accum := 0.0
 var player_hit_cd := 0.0
+var local_hp := 100
 
 func _safe_tex(path: String) -> Texture2D:
 	var t = load(path)
@@ -105,6 +108,8 @@ func _process(delta: float) -> void:
 	_update_light()
 	_handle_skills()
 	_update_projectiles(delta)
+	_update_enemy_projectiles(delta)
+	_update_dying_monsters(delta)
 	_poll_presence(delta)
 	_update_camera_shake(delta)
 	_update_chunks()
@@ -234,10 +239,12 @@ func _draw() -> void:
 		for p in chunk.flowers:
 			draw_circle(p, 2.5, Color("#d5e889") if int(p.x + p.y) % 2 == 0 else Color("#f2c879"))
 		for p in chunk.trees:
-			draw_circle(p + Vector2(4, 8), 25, Color(0, 0, 0, 0.16))
-			var tree_variant: int = abs(int(p.x + p.y)) % 2
-			var src: Rect2 = [Rect2(0, 0, 64, 96), Rect2(64, 0, 64, 96)][tree_variant]
-			draw_texture_rect_region(nature_tex, Rect2(p - Vector2(34, 62), Vector2(68, 96)), src)
+			var sway := sin(time * 1.7 + p.x * 0.013) * 3.0
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-7, 18), p + Vector2(7, 18), p + Vector2(5 + sway, -30), p + Vector2(-5 + sway, -30)]), Color("#70482c"))
+			draw_circle(p + Vector2(sway - 13, -35), 21, Color("#245d37"))
+			draw_circle(p + Vector2(sway + 13, -38), 23, Color("#2d7542"))
+			draw_circle(p + Vector2(sway, -55), 25, Color("#3a8a4b"))
+			draw_circle(p + Vector2(sway - 5, -60), 9, Color(0.42, 0.76, 0.38, 0.34))
 	# Quest actors use the actual repository sprites.
 	for m in monsters:
 		var frame := int(time * 8.0) % 6
@@ -245,6 +252,11 @@ func _draw() -> void:
 		if time < float(m.get("hit_until", 0.0)):
 			draw_circle(m.pos - Vector2(0, 18), 25, Color(1.0, 0.92, 0.68, 0.72))
 		draw_texture_rect_region(enemy_tex, Rect2(m.pos - Vector2(28, 46), Vector2(56, 56)), Rect2(frame * 32, row * 32, 32, 32))
+	for m in dying_monsters:
+		var alpha := clampf(m.life / 0.55, 0.0, 1.0)
+		draw_set_transform(m.pos, PI * 0.5, Vector2.ONE)
+		draw_texture_rect_region(enemy_tex, Rect2(Vector2(-28, -46), Vector2(56, 56)), Rect2(0, 32, 32, 32), Color(1, 1, 1, alpha))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# gate glow
 	draw_circle(gate_position, 30, Color(0.3, 0.9, 0.45, 0.4))
 	draw_circle(gate_position, 18, Color(0.35, 0.95, 0.5))
@@ -276,11 +288,16 @@ func _build_coins() -> void:
 func _build_monsters() -> void:
 	for p in monster_positions:
 		var angle := map_rng.randf_range(0, TAU)
-		monsters.append({ "pos": p, "hp": 3, "dir": Vector2.from_angle(angle), "sprite": null })
+		monsters.append({ "pos": p, "hp": 3, "dir": Vector2.from_angle(angle), "shoot_cd": map_rng.randf_range(0.4, 1.2), "sprite": null })
 
 func _wander_monsters(delta: float) -> void:
 	for m in monsters:
-		m.pos += m.dir * 40.0 * delta
+		m.pos += m.dir * 55.0 * delta
+		m.shoot_cd -= delta
+		var to_player: Vector2 = player.position - m.pos
+		if m.shoot_cd <= 0.0 and to_player.length() < 650.0:
+			m.shoot_cd = map_rng.randf_range(1.15, 1.7)
+			_spawn_enemy_projectile(m.pos, to_player.normalized())
 		if m.pos.x < 120 or m.pos.x > ARENA_W - 120:
 			m.dir = Vector2(-m.dir.x, m.dir.y)
 		if m.pos.y < 120 or m.pos.y > ARENA_H - 120:
@@ -316,11 +333,13 @@ func _handle_skills() -> void:
 
 func try_cast_skill(index: int) -> bool:
 	if index == 1 and skill1_cd <= 0.0:
-		skill1_cd = 1.0
+		skill1_cd = 0.45
+		player.show_attack(0.18)
 		_cast_slash()
 		return true
 	if index == 2 and skill2_cd <= 0.0:
-		skill2_cd = 2.0
+		skill2_cd = 0.85
+		player.show_attack(0.24)
 		_cast_fireball()
 		return true
 	return false
@@ -328,9 +347,9 @@ func try_cast_skill(index: int) -> bool:
 func _cast_slash() -> void:
 	var dir: Vector2 = player.facing
 	var start: Vector2 = player.position + dir * 40
-	var end: Vector2 = player.position + dir * 260
+	var end: Vector2 = player.position + dir * 430
 	_spawn_ring(start, Color("#64efff"), 54.0, 0.24, 4.0)
-	_spawn_direction_streak(player.position, dir, 285.0, Color(0.25, 0.92, 1.0, 0.72), 0.18)
+	_spawn_direction_streak(player.position, dir, 440.0, Color(0.25, 0.92, 1.0, 0.72), 0.18)
 	for i in range(2):
 		var wave := _spawn_custom_vfx(custom_slash_tex, start + dir * (44 + i * 24), 0.22 + i * 0.035)
 		wave.rotation = dir.angle()
@@ -342,7 +361,7 @@ func _cast_slash() -> void:
 		tw.tween_property(wave, "modulate:a", 0.0, 0.25 + i * 0.04)
 		tw.chain().tween_callback(func(): wave.queue_free())
 	_spawn_particles(start, Color(0.35, 0.92, 1.0), 8, 80.0)
-	_damage_in_direction(player.position, dir, 290.0, 72.0, 1)
+	_damage_in_direction(player.position, dir, 445.0, 88.0, 1)
 	_flash(Color(0.25, 0.9, 1.0, 0.075), 0.10)
 	_shake(4.0)
 
@@ -374,7 +393,7 @@ func _cast_fireball() -> void:
 	node.add_child(trail)
 	node.position = player.position + dir * 36
 	add_child(node)
-	projectiles.append({ "node": node, "dir": dir, "speed": 420.0, "life": 1.2 })
+	projectiles.append({ "node": node, "dir": dir, "speed": 620.0, "life": 2.4 })
 	_spawn_ring(node.position, Color("#ff9a32"), 50.0, 0.30, 5.0)
 	_spawn_particles(node.position, Color("#ffb13b"), 6, 70.0)
 	_flash(Color(1.0, 0.35, 0.05, 0.055), 0.09)
@@ -402,6 +421,46 @@ func _update_projectiles(delta: float) -> void:
 	if projectile_particle_accum >= 0.08:
 		projectile_particle_accum = 0.0
 
+func _spawn_enemy_projectile(pos: Vector2, dir: Vector2) -> void:
+	var orb := Node2D.new()
+	orb.position = pos - Vector2(0, 20)
+	var aura := Sprite2D.new()
+	aura.texture = light_texture
+	aura.scale = Vector2(0.28, 0.28)
+	aura.modulate = Color(0.68, 0.18, 1.0, 0.78)
+	orb.add_child(aura)
+	var core := Sprite2D.new()
+	core.texture = light_texture
+	core.scale = Vector2(0.11, 0.11)
+	core.modulate = Color(0.95, 0.72, 1.0, 1.0)
+	orb.add_child(core)
+	add_child(orb)
+	enemy_projectiles.append({ "node": orb, "dir": dir, "life": 2.3 })
+
+func _update_enemy_projectiles(delta: float) -> void:
+	for shot in enemy_projectiles.duplicate():
+		shot.life -= delta
+		var orb: Node2D = shot.node
+		orb.position += (shot.dir as Vector2) * 330.0 * delta
+		var pulse := 1.0 + sin(time * 22.0) * 0.08
+		orb.scale = Vector2(pulse, pulse)
+		if shot.life <= 0.0:
+			enemy_projectiles.erase(shot)
+			orb.queue_free()
+		elif orb.position.distance_to(player.position) < 27.0:
+			enemy_projectiles.erase(shot)
+			_spawn_impact(orb.position, false)
+			orb.queue_free()
+			if player_hit_cd <= 0.0:
+				player_hit_cd = 0.8
+				player_damaged.emit()
+
+func _update_dying_monsters(delta: float) -> void:
+	for corpse in dying_monsters.duplicate():
+		corpse.life -= delta
+		if corpse.life <= 0.0:
+			dying_monsters.erase(corpse)
+
 func _damage_in_rect(rect: Rect2, dmg: int) -> void:
 	for m in monsters.duplicate():
 		if rect.has_point(m.pos):
@@ -418,6 +477,8 @@ func _damage_in_direction(origin: Vector2, dir: Vector2, reach: float, width: fl
 func _damage_monster(m: Dictionary, dmg: int) -> void:
 	m.hp -= dmg
 	m.hit_until = time + 0.13
+	var away: Vector2 = (m.pos as Vector2 - player.position).normalized()
+	m.pos += away * 18.0
 	_spawn_particles(m.pos, Color(1.0, 0.4, 0.3), 8)
 	_spawn_popup(m.pos, str(dmg), Color(1.0, 0.5, 0.4))
 	var hit := _spawn_vfx(1, m.pos, 0.065)
@@ -427,6 +488,7 @@ func _damage_monster(m: Dictionary, dmg: int) -> void:
 	hit_tw.tween_property(hit, "modulate:a", 0.0, 0.25)
 	hit_tw.tween_callback(func(): hit.queue_free())
 	if m.hp <= 0:
+		dying_monsters.append({ "pos": m.pos, "life": 0.55 })
 		monsters.erase(m)
 		monsters_left -= 1
 		_spawn_particles(m.pos, Color(0.6, 1.0, 0.4), 16)
@@ -586,12 +648,12 @@ func _make_radial_light_texture() -> Texture2D:
 # ---------------------------------------------------------------------------
 func _poll_presence(delta: float) -> void:
 	presence_t += delta
-	if presence_t < 2.0:
+	if presence_t < 0.35:
 		return
 	presence_t = 0.0
 	if profile.address == "":
 		return
-	cardano_service.send_presence(profile.address, profile.player_name, player.position.x, player.position.y, profile.level, func(_r, _c, _d): pass)
+	cardano_service.send_presence(profile.address, profile.player_name, player.position.x, player.position.y, profile.level, player.action_state, player.facing, local_hp, func(_r, _c, _d): pass)
 	cardano_service.fetch_presence(_cb_presence)
 
 func _cb_presence(result: int, code: int, data) -> void:
@@ -608,10 +670,17 @@ func _cb_presence(result: int, code: int, data) -> void:
 		var y := float(p.get("y", 0))
 		if other_players.has(addr):
 			var n = other_players[addr]
-			n.position = Vector2(x, y)
+			var target := Vector2(x, y)
+			n.position = n.position.lerp(target, 0.68)
+			var state := str(p.get("state", "idle"))
+			var remote_sprite: Sprite2D = n.get_node("Sprite")
+			remote_sprite.flip_h = float(p.get("facing_x", 0.0)) > 0.0
+			remote_sprite.rotation = PI * 0.5 if state == "dead" else 0.0
+			remote_sprite.modulate = Color(1.0, 0.35, 0.35) if state == "hurt" else Color.WHITE
 		else:
 			var holder := Node2D.new()
 			var s := Sprite2D.new()
+			s.name = "Sprite"
 			var other_atlas := AtlasTexture.new()
 			other_atlas.atlas = hero_idle_tex
 			other_atlas.region = Rect2(0, 0, 32, 32)

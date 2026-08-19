@@ -1,11 +1,13 @@
 extends CharacterBody2D
 ## Top-down player (Kenney alien, CC0). WASD/arrows move.
 
-const SPEED := 260.0
+const SPEED := 360.0
 
 var facing := Vector2(0, 1)
 var anim: AnimatedSprite2D
 var moving := false
+var action_state := "idle"
+var state_until := 0.0
 
 func _ready() -> void:
 	anim = AnimatedSprite2D.new()
@@ -76,6 +78,8 @@ func _physics_process(_delta: float) -> void:
 		dir.x = signf(raw_dir.x)
 	velocity = dir * SPEED
 	moving = velocity.length() > 10.0
+	if Time.get_ticks_msec() * 0.001 >= state_until:
+		action_state = "run" if moving else "idle"
 	if dir.x != 0:
 		facing = Vector2(signf(dir.x), 0)
 	elif dir.y != 0:
@@ -88,3 +92,27 @@ func _physics_process(_delta: float) -> void:
 		direction = "up"
 	anim.flip_h = direction == "right"
 	anim.play(("run_" if moving else "idle_") + direction)
+
+func show_hurt() -> void:
+	action_state = "hurt"
+	state_until = Time.get_ticks_msec() * 0.001 + 0.28
+	var tw := create_tween()
+	tw.tween_property(anim, "modulate", Color(1.0, 0.28, 0.28), 0.05)
+	tw.tween_property(anim, "modulate", Color.WHITE, 0.18)
+
+func show_attack(duration := 0.22) -> void:
+	action_state = "attack"
+	state_until = Time.get_ticks_msec() * 0.001 + duration
+
+func show_death() -> void:
+	action_state = "dead"
+	state_until = Time.get_ticks_msec() * 0.001 + 0.65
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(anim, "rotation", PI * 0.5, 0.28).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(anim, "modulate:a", 0.25, 0.58)
+
+func revive_visual() -> void:
+	anim.rotation = 0.0
+	anim.modulate = Color.WHITE
+	action_state = "idle"

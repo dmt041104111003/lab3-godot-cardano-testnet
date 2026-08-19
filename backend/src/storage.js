@@ -39,6 +39,10 @@ export async function ensureSchema() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    await client.query(`ALTER TABLE presence ADD COLUMN IF NOT EXISTS state TEXT NOT NULL DEFAULT 'idle'`);
+    await client.query(`ALTER TABLE presence ADD COLUMN IF NOT EXISTS facing_x REAL NOT NULL DEFAULT 0`);
+    await client.query(`ALTER TABLE presence ADD COLUMN IF NOT EXISTS facing_y REAL NOT NULL DEFAULT 1`);
+    await client.query(`ALTER TABLE presence ADD COLUMN IF NOT EXISTS hp INT NOT NULL DEFAULT 100`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS chat (
         id BIGSERIAL PRIMARY KEY,
@@ -52,16 +56,16 @@ export async function ensureSchema() {
   }
 }
 
-export async function savePresence({ address, name, x, y, level }) {
+export async function savePresence({ address, name, x, y, level, state, facing_x, facing_y, hp }) {
   if (!isEnabled()) return { stored: false, reason: 'database not configured' };
   await ensureSchema();
   const client = await getPool().connect();
   try {
     await client.query(
-      `INSERT INTO presence (address, name, x, y, level, updated_at)
-       VALUES ($1, $2, $3, $4, $5, now())
-       ON CONFLICT (address) DO UPDATE SET name = EXCLUDED.name, x = EXCLUDED.x, y = EXCLUDED.y, level = EXCLUDED.level, updated_at = now()`,
-      [address, name, x, y, level],
+      `INSERT INTO presence (address, name, x, y, level, state, facing_x, facing_y, hp, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+       ON CONFLICT (address) DO UPDATE SET name = EXCLUDED.name, x = EXCLUDED.x, y = EXCLUDED.y, level = EXCLUDED.level, state = EXCLUDED.state, facing_x = EXCLUDED.facing_x, facing_y = EXCLUDED.facing_y, hp = EXCLUDED.hp, updated_at = now()`,
+      [address, name, x, y, level, state, facing_x, facing_y, hp],
     );
     return { stored: true };
   } finally {
@@ -75,7 +79,7 @@ export async function getPresence(withinSeconds = 20) {
   const client = await getPool().connect();
   try {
     const r = await client.query(
-      `SELECT address, name, x, y, level FROM presence WHERE updated_at > now() - make_interval(secs => $1)`,
+      `SELECT address, name, x, y, level, state, facing_x, facing_y, hp FROM presence WHERE updated_at > now() - make_interval(secs => $1)`,
       [withinSeconds],
     );
     return r.rows;

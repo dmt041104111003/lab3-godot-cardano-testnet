@@ -638,11 +638,18 @@ func _on_gate() -> void:
 
 func _on_player_damaged() -> void:
 	current_health = maxi(current_health - 20, 0)
+	world.local_hp = current_health
+	world.player.show_hurt()
 	_update_health_hud()
 	if current_health <= 0:
-		current_health = max_health
-		world.reset_player()
-		_update_health_hud()
+		world.player.show_death()
+		get_tree().create_timer(0.65).timeout.connect(func():
+			current_health = max_health
+			world.local_hp = current_health
+			world.reset_player()
+			world.player.revive_visual()
+			_update_health_hud()
+		)
 
 func _update_health_hud() -> void:
 	if not ui.has("health_bar"):

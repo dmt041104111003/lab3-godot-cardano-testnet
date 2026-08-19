@@ -140,11 +140,11 @@ app.get('/api/player/:address', async (req, res) => {
 // Online world: presence + chat (shared via Postgres)
 app.post('/api/presence', async (req, res) => {
   try {
-    const { address, name, x, y, level } = req.body || {};
+    const { address, name, x, y, level, state, facing_x, facing_y, hp } = req.body || {};
     if (!address || typeof address !== 'string' || address.length < 40) {
       return res.status(400).json({ ok: false, error: 'a valid address is required' });
     }
-    const result = await savePresence({ address, name: String(name || ''), x: Number(x || 0), y: Number(y || 0), level: Number(level || 1) });
+    const result = await savePresence({ address, name: String(name || ''), x: Number(x || 0), y: Number(y || 0), level: Number(level || 1), state: String(state || 'idle'), facing_x: Number(facing_x || 0), facing_y: Number(facing_y || 1), hp: Number(hp ?? 100) });
     res.json({ ok: true, ...result });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });

@@ -42,9 +42,11 @@ try {
   $secretPlain = $null
 }
 
-Push-Location (Join-Path $root 'backend')
+Push-Location $root
 try {
-  npx.cmd --yes vercel@50.14.0 deploy --prod --yes
+  # The Vercel project itself already has Root Directory=backend. Deploy
+  # from the repository root so the CLI does not resolve backend/backend.
+  npx.cmd --yes vercel@50.14.0 deploy --prod --yes --local-config (Join-Path $root 'backend\vercel.json')
   if ($LASTEXITCODE -ne 0) { throw 'Backend deploy failed' }
 } finally {
   Pop-Location

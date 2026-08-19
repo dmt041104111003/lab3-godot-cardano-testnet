@@ -85,19 +85,9 @@ func _ready() -> void:
 	player.position = Vector2(ARENA_W / 2, ARENA_H / 2)
 	add_child(player)
 	_update_chunks(true)
-	var light := PointLight2D.new()
-	light.position = Vector2(0, -10)
-	light.energy = 1.3
-	light.texture_scale = 10.0
-	light.color = Color(1.0, 0.95, 0.8)
-	light.texture = _radial_light_texture()
-	player.add_child(light)
 	cam = Camera2D.new()
 	cam.position_smoothing_enabled = true
 	player.add_child(cam)
-	var dark := CanvasModulate.new()
-	dark.color = Color(0.68, 0.72, 0.78)
-	add_child(dark)
 
 func _process(delta: float) -> void:
 	time += delta
@@ -111,7 +101,7 @@ func _process(delta: float) -> void:
 	_update_camera_shake(delta)
 	_update_chunks()
 	redraw_accum += delta
-	if redraw_accum >= 0.12:
+	if redraw_accum >= 0.20:
 		redraw_accum = 0.0
 		queue_redraw()
 
@@ -342,12 +332,6 @@ func _cast_fireball() -> void:
 	trail.end_cap_mode = Line2D.LINE_CAP_ROUND
 	trail.points = PackedVector2Array([Vector2.ZERO, -dir * 32])
 	node.add_child(trail)
-	var light := PointLight2D.new()
-	light.energy = 1.3
-	light.texture_scale = 5.0
-	light.color = Color(1.0, 0.7, 0.3)
-	light.texture = _radial_light_texture()
-	node.add_child(light)
 	node.position = player.position + dir * 36
 	add_child(node)
 	projectiles.append({ "node": node, "dir": dir, "speed": 420.0, "life": 1.2 })
@@ -362,8 +346,6 @@ func _update_projectiles(delta: float) -> void:
 			continue
 		var node: Node2D = p.node
 		node.position += (p.dir as Vector2) * (p.speed as float) * delta
-		if projectile_particle_accum >= 0.08:
-			_spawn_particles(node.position, Color(1.0, 0.6, 0.2), 1, 25)
 		for m in monsters.duplicate():
 			if node.position.distance_to(m.pos) < 30:
 				_damage_monster(m, 1)
@@ -419,19 +401,14 @@ func _spawn_vfx(cell: int, pos: Vector2, effect_scale: float) -> Sprite2D:
 
 func _spawn_impact(pos: Vector2, fiery: bool) -> void:
 	var fx := _spawn_vfx(3 if fiery else 1, pos, 0.055)
-	var light := PointLight2D.new()
-	light.texture = _radial_light_texture()
-	light.color = Color("#ff8a22") if fiery else Color("#52e8ff")
-	light.energy = 1.5
-	light.texture_scale = 2.5
-	fx.add_child(light)
+	var impact_color := Color("#ff8a22") if fiery else Color("#52e8ff")
 	var tw := create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(fx, "scale", Vector2(0.13, 0.13), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(fx, "modulate:a", 0.0, 0.42).set_delay(0.10)
 	tw.tween_callback(func(): fx.queue_free()).set_delay(0.45)
-	_spawn_particles(pos, light.color, 10, 140.0)
-	_flash(Color(light.color, 0.055), 0.09)
+	_spawn_particles(pos, impact_color, 6, 120.0)
+	_flash(Color(impact_color, 0.035), 0.07)
 	_shake(4.0)
 
 func _flash(color: Color, duration: float) -> void:

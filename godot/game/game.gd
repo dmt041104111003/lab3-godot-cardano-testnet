@@ -44,11 +44,11 @@ func _process(_delta: float) -> void:
 		return
 	if ui.has("skill_slash"):
 		var slash_cd: float = world.skill1_cd
-		ui.skill_slash.text = "J\nSLASH\n%s" % ["READY" if slash_cd <= 0.0 else "%.1fs" % slash_cd]
+		ui.skill_slash.text = "READY" if slash_cd <= 0.0 else "%.1fs" % slash_cd
 		ui.skill_slash.modulate = Color.WHITE if slash_cd <= 0.0 else Color(0.55, 0.62, 0.68)
 	if ui.has("skill_fire"):
 		var fire_cd: float = world.skill2_cd
-		ui.skill_fire.text = "K\nFIREBALL\n%s" % ["READY" if fire_cd <= 0.0 else "%.1fs" % fire_cd]
+		ui.skill_fire.text = "READY" if fire_cd <= 0.0 else "%.1fs" % fire_cd
 		ui.skill_fire.modulate = Color.WHITE if fire_cd <= 0.0 else Color(0.55, 0.62, 0.68)
 
 func _build_background() -> void:
@@ -128,6 +128,8 @@ func _screen(name: String) -> Control:
 func _show_screen(name: String) -> void:
 	for k in screens.keys():
 		screens[k].visible = (k == name)
+	if ui.has("play_hud_layer"):
+		ui.play_hud_layer.visible = (name == "play")
 
 func _set_label(d: Dictionary, key: String, text: String, color: Color) -> void:
 	if d.has(key) and d[key] is Label:
@@ -159,8 +161,8 @@ func _build_menu() -> void:
 	panel.add_child(v)
 	var eyebrow := _centered_label("ON-CHAIN ADVENTURE", 11, Color("#73f7de"))
 	v.add_child(eyebrow)
-	v.add_child(_centered_label("CATALYST", 42, Color("#f4fbff")))
-	v.add_child(_centered_label("QUEST", 30, Color("#ffd166")))
+	v.add_child(_centered_label("LAB3", 42, Color("#f4fbff")))
+	v.add_child(_centered_label("GODOT x CARDANO", 22, Color("#ffd166")))
 	var hero := TextureRect.new()
 	var hero_atlas := AtlasTexture.new()
 	hero_atlas.atlas = load("res://assets/local_pack/characters/hero_idle.png")
@@ -171,7 +173,7 @@ func _build_menu() -> void:
 	hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	v.add_child(hero)
-	v.add_child(_centered_label("Explore the village. Defeat monsters.\nMint your victories on Cardano.", 11, Color("#9db1c8")))
+	v.add_child(_centered_label("A playable Web3 reference game.\nComplete quests. Build identity. Verify on Cardano.", 10, Color("#9db1c8")))
 	ui.menu_player = _label("", 12, COLOR_INFO)
 	ui.menu_player.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(ui.menu_player)
@@ -222,8 +224,10 @@ func _build_profile() -> void:
 
 func _build_play() -> void:
 	var s := _screen("play")
-	# Keep the HUD above the dynamically-added world node.
-	s.z_index = 100
+	var hud_layer := CanvasLayer.new()
+	hud_layer.layer = 50
+	add_child(hud_layer)
+	ui.play_hud_layer = hud_layer
 	var top := PanelContainer.new()
 	top.anchor_right = 1.0
 	top.offset_left = 16
@@ -232,7 +236,7 @@ func _build_play() -> void:
 	top.offset_bottom = 72
 	top.add_theme_constant_override("margin_left", 16)
 	top.add_theme_constant_override("margin_right", 16)
-	s.add_child(top)
+	hud_layer.add_child(top)
 	var h := HBoxContainer.new()
 	top.add_child(h)
 	h.add_theme_constant_override("separation", 18)
@@ -254,7 +258,7 @@ func _build_play() -> void:
 	chat_box.offset_right = 420
 	chat_box.custom_minimum_size.y = 190
 	chat_box.add_theme_constant_override("separation", 4)
-	s.add_child(chat_box)
+	hud_layer.add_child(chat_box)
 	ui.chat = RichTextLabel.new()
 	ui.chat.bbcode_enabled = true
 	ui.chat.scroll_active = true
@@ -270,34 +274,54 @@ func _build_play() -> void:
 	chat_row.add_child(send)
 	chat_box.add_child(chat_row)
 	ui.info_label = _label("Click a player to view their profile", 13, COLOR_INFO)
-	s.add_child(ui.info_label)
+	hud_layer.add_child(ui.info_label)
 	ui.info_label.anchors_preset = Control.PRESET_BOTTOM_RIGHT
 	ui.info_label.offset_right = -12
 	ui.info_label.offset_bottom = -136
 	var skills := HBoxContainer.new()
-	skills.z_index = 110
 	skills.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	skills.offset_left = -310
-	skills.offset_top = -120
+	skills.offset_left = -330
+	skills.offset_top = -138
 	skills.offset_right = -18
 	skills.offset_bottom = -18
 	skills.add_theme_constant_override("separation", 10)
-	s.add_child(skills)
-	ui.skill_slash = _skill_card("J\nSLASH\nREADY", Color("#43d9e6"), load("res://assets/local_pack/ui/skill_slash.png"))
-	ui.skill_fire = _skill_card("K\nFIREBALL\nREADY", Color("#ff9f43"), load("res://assets/local_pack/ui/skill_fire.png"))
-	skills.add_child(ui.skill_slash)
-	skills.add_child(ui.skill_fire)
+	hud_layer.add_child(skills)
+	var slash_card := _skill_card("J", "SLASH", Color("#43d9e6"), load("res://assets/local_pack/ui/skill_slash.png"))
+	var fire_card := _skill_card("K", "FIREBALL", Color("#ff9f43"), load("res://assets/local_pack/ui/skill_fire.png"))
+	skills.add_child(slash_card.card)
+	skills.add_child(fire_card.card)
+	ui.skill_slash = slash_card.status
+	ui.skill_fire = fire_card.status
+	var flow := PanelContainer.new()
+	flow.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	flow.offset_left = -510
+	flow.offset_top = 82
+	flow.offset_right = -18
+	flow.offset_bottom = 124
+	hud_layer.add_child(flow)
+	ui.flow_label = _centered_label("PLAY  >  MILESTONE  >  CIP-0170  >  CARDANO", 9, Color("#ffd166"))
+	flow.add_child(ui.flow_label)
 
-func _skill_card(text: String, accent: Color, icon: Texture2D) -> Button:
-	var card := Button.new()
-	card.text = text
-	card.custom_minimum_size = Vector2(138, 96)
+func _skill_card(key: String, title: String, accent: Color, icon: Texture2D) -> Dictionary:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(150, 118)
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.icon = icon
-	card.expand_icon = true
-	card.add_theme_color_override("font_color", accent)
-	card.add_theme_font_size_override("font_size", 10)
-	return card
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	card.add_child(row)
+	var picture := TextureRect.new()
+	picture.texture = icon
+	picture.custom_minimum_size = Vector2(52, 52)
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	row.add_child(picture)
+	var copy := VBoxContainer.new()
+	row.add_child(copy)
+	copy.add_child(_label("[" + key + "]", 11, accent))
+	copy.add_child(_label(title, 9, Color.WHITE))
+	var status := _label("READY", 9, Color("#7ef29a"))
+	copy.add_child(status)
+	return { "card": card, "status": status }
 
 func _build_verify() -> void:
 	var s := _screen("verify")
@@ -478,6 +502,8 @@ func _update_quest_hud() -> void:
 	if world != null:
 		ui.play_progress.text = "Coins %d/%d   Monsters %d/%d" % [8 - int(world.coins_left), 8, 3 - int(world.monsters_left), 3]
 		ui.inventory.text = "MAP #%04d  |  J: Slash  K: Fireball" % [absi(int(world.map_seed)) % 10000]
+		var identity := "GUEST / OFF-CHAIN" if profile.address == "" else "WALLET CONNECTED / CIP-0170 READY"
+		ui.flow_label.text = "PLAY  >  MILESTONE  >  CIP-0170  >  CARDANO   |   " + identity
 
 func _on_coins(n: int) -> void:
 	var collected := 8 - n

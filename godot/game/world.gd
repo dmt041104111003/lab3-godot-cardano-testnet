@@ -40,7 +40,6 @@ var enemy_tex: Texture2D
 var fire_tex: Texture2D
 var custom_slash_tex: Texture2D
 var custom_fire_tex: Texture2D
-var explosion_frames: SpriteFrames
 var light_texture: Texture2D
 var chest_tex: Texture2D
 var slash_textures: Array[Texture2D] = []
@@ -350,13 +349,16 @@ func _cast_slash() -> void:
 func _cast_fireball() -> void:
 	var dir: Vector2 = player.facing
 	var node := Node2D.new()
-	var col := AnimatedSprite2D.new()
-	col.sprite_frames = explosion_frames
-	col.animation = "projectile"
-	col.scale = Vector2(0.055, 0.055)
-	col.modulate = Color("#ff9d43")
-	col.play()
-	node.add_child(col)
+	var aura := Sprite2D.new()
+	aura.texture = light_texture
+	aura.scale = Vector2(0.52, 0.52)
+	aura.modulate = Color(1.0, 0.22, 0.03, 0.62)
+	node.add_child(aura)
+	var core := Sprite2D.new()
+	core.texture = light_texture
+	core.scale = Vector2(0.22, 0.22)
+	core.modulate = Color(1.0, 0.88, 0.42, 1.0)
+	node.add_child(core)
 	var glow := PointLight2D.new()
 	glow.texture = light_texture
 	glow.color = Color("#ff8a24")
@@ -364,11 +366,11 @@ func _cast_fireball() -> void:
 	glow.texture_scale = 0.75
 	node.add_child(glow)
 	var trail := Line2D.new()
-	trail.width = 14
-	trail.default_color = Color(1.0, 0.42, 0.08, 0.72)
+	trail.width = 9
+	trail.default_color = Color(1.0, 0.34, 0.04, 0.66)
 	trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	trail.end_cap_mode = Line2D.LINE_CAP_ROUND
-	trail.points = PackedVector2Array([Vector2.ZERO, -dir * 32])
+	trail.points = PackedVector2Array([-dir * 54, Vector2.ZERO])
 	node.add_child(trail)
 	node.position = player.position + dir * 36
 	add_child(node)
@@ -388,7 +390,6 @@ func _update_projectiles(delta: float) -> void:
 			continue
 		var node: Node2D = p.node
 		node.position += (p.dir as Vector2) * (p.speed as float) * delta
-		node.rotation += delta * 3.5
 		var pulse := 1.0 + sin(time * 18.0) * 0.055
 		node.scale = Vector2(pulse, pulse)
 		for m in monsters.duplicate():
@@ -470,7 +471,7 @@ func _spawn_impact(pos: Vector2, fiery: bool) -> void:
 	var impact_color := Color("#ff8a22") if fiery else Color("#52e8ff")
 	var fx: CanvasItem
 	if fiery:
-		fx = _spawn_explosion_animation(pos)
+		fx = _spawn_energy_burst(pos, impact_color)
 	else:
 		fx = _spawn_vfx(1, pos, 0.055)
 	_spawn_ring(pos, impact_color, 62.0 if fiery else 48.0, 0.34, 5.0)
@@ -542,31 +543,30 @@ func _update_camera_shake(delta: float) -> void:
 	cam.offset = Vector2(randf_range(-shake_strength, shake_strength), randf_range(-shake_strength, shake_strength))
 
 func _build_cached_skill_resources() -> void:
-	explosion_frames = SpriteFrames.new()
-	explosion_frames.add_animation("projectile")
-	explosion_frames.set_animation_speed("projectile", 16.0)
-	explosion_frames.set_animation_loop("projectile", true)
-	explosion_frames.add_animation("impact")
-	explosion_frames.set_animation_speed("impact", 28.0)
-	explosion_frames.set_animation_loop("impact", false)
-	for i in range(20):
-		var tex := _safe_tex("res://assets/local_pack/vfx/explosion/ExplosionFx-Explossion_%02d.png" % i)
-		explosion_frames.add_frame("impact", tex)
-		if i >= 3 and i <= 8:
-			explosion_frames.add_frame("projectile", tex)
 	light_texture = _make_radial_light_texture()
 
-func _spawn_explosion_animation(pos: Vector2) -> AnimatedSprite2D:
-	var fx := AnimatedSprite2D.new()
-	fx.sprite_frames = explosion_frames
-	fx.animation = "impact"
-	fx.position = pos
-	fx.scale = Vector2(0.11, 0.11)
-	fx.modulate = Color("#ff8d32")
-	fx.animation_finished.connect(func(): fx.queue_free())
-	add_child(fx)
-	fx.play()
-	return fx
+func _spawn_energy_burst(pos: Vector2, color: Color) -> Node2D:
+	var holder := Node2D.new()
+	holder.position = pos
+	add_child(holder)
+	var aura := Sprite2D.new()
+	aura.texture = light_texture
+	aura.modulate = Color(color, 0.88)
+	aura.scale = Vector2(0.18, 0.18)
+	holder.add_child(aura)
+	var core := Sprite2D.new()
+	core.texture = light_texture
+	core.modulate = Color(1.0, 0.92, 0.62, 1.0)
+	core.scale = Vector2(0.08, 0.08)
+	holder.add_child(core)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(aura, "scale", Vector2(1.25, 1.25), 0.24).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(aura, "modulate:a", 0.0, 0.30)
+	tw.tween_property(core, "scale", Vector2(0.46, 0.46), 0.15).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(core, "modulate:a", 0.0, 0.23)
+	tw.chain().tween_callback(func(): holder.queue_free())
+	return holder
 
 func _make_radial_light_texture() -> Texture2D:
 	var gradient := Gradient.new()

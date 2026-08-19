@@ -144,15 +144,16 @@ func _ready() -> void:
 		plant_idle.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Idle_without_shadow.png" % [kind, kind]))
 		plant_attack.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Attack_without_shadow.png" % [kind, kind]))
 		plant_dying.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Death_without_shadow.png" % [kind, kind]))
-	# Keep the first world frame responsive. Animations use a compact sampled
-	# subset; the source sheets remain in the pack for future streaming.
-	new_enemy_idle = _load_enemy_sequence("idle", "Front - Idle", 6)
-	new_enemy_run = _load_enemy_sequence("run", "Front - Running", 6)
-	new_enemy_hurt = _load_enemy_sequence("hurt", "Front - Hurt", 4)
-	new_enemy_attack = _load_enemy_sequence("attack", "Front - Attacking", 4)
-	new_enemy_death = _load_enemy_sequence("death", "Dying", 4)
-	rock_textures = _load_asset_set("res://assets/da/rocks", 12)
-	rock_shadow_textures = _load_asset_set("res://assets/da/shadows", 12)
+	# Do not synchronously import dozens of large sprite sheets on the Play
+	# click. Use already-loaded fallback textures for the first frame; the
+	# renderer remains valid and the real sheets can be streamed later.
+	new_enemy_idle = [enemy_tex]
+	new_enemy_run = [enemy_tex]
+	new_enemy_hurt = [enemy_tex]
+	new_enemy_attack = [enemy_tex]
+	new_enemy_death = [enemy_tex]
+	rock_textures = [coin_tex]
+	rock_shadow_textures = [coin_tex]
 	house_details_tex = _safe_tex("res://assets/house/house_details.png")
 	fence_tex = _safe_tex("res://assets/house/walls_floor.png")
 	fire_tex = _safe_tex("res://assets/local_pack/vfx/fire.png")

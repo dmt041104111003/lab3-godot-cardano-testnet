@@ -32,9 +32,9 @@ func _build_animations() -> void:
 	var sf := SpriteFrames.new()
 	var idle_tex := _safe_tex("res://assets/local_pack/characters/hero_idle.png")
 	var walk_tex := _safe_tex("res://assets/local_pack/characters/hero_walk.png")
-	# Runtime-facing order verified in game: front, left, right, back.
-	# Each visible 32px frame spans two 16px tiles in the source atlas.
-	var direction_rows := {"down": 0, "left": 1, "right": 2, "up": 3}
+	# Use one canonical side-facing row and mirror it at runtime. This avoids
+	# relying on inconsistent left/right labels in the source asset metadata.
+	var direction_rows := {"down": 0, "left": 1, "right": 1, "up": 3}
 	for direction in ["down", "right", "left", "up"]:
 		var row: int = int(direction_rows[direction])
 		var idle_name: String = "idle_" + direction
@@ -86,4 +86,5 @@ func _physics_process(_delta: float) -> void:
 		direction = "right" if facing.x > 0 else "left"
 	elif facing.y < 0:
 		direction = "up"
+	anim.flip_h = direction == "left"
 	anim.play(("run_" if moving else "idle_") + direction)

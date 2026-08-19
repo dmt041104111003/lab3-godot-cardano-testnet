@@ -163,7 +163,7 @@ func _generate_chunk(coord: Vector2i) -> Dictionary:
 		ponds.append(origin + Vector2(rng.randf_range(100, CHUNK_SIZE - 100), rng.randf_range(100, CHUNK_SIZE - 100)))
 	if rng.randf() < 0.05:
 		ruins.append(origin + Vector2(rng.randf_range(120, CHUNK_SIZE - 120), rng.randf_range(110, CHUNK_SIZE - 110)))
-	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "ground_blots": ground_blots, "tone": rng.randf_range(-0.008, 0.008) }
+	return { "origin": origin, "trees": trees, "flowers": flowers, "patches": patches, "ponds": ponds, "ruins": ruins, "ground_blots": ground_blots }
 
 func _generate_map() -> void:
 	# A fresh deterministic layout is created every time World is instantiated.
@@ -219,9 +219,9 @@ func _draw() -> void:
 	# Only nearby chunks are retained and rendered; crossing a boundary generates more.
 	for chunk in active_chunks.values():
 		var origin: Vector2 = chunk.origin
-		var tone: float = chunk.tone
-		# Overlap the base by one pixel so filtering never exposes chunk seams.
-		draw_rect(Rect2(origin - Vector2.ONE, Vector2(CHUNK_SIZE + 2, CHUNK_SIZE + 2)), Color(0.105 + tone, 0.255 + tone, 0.145 + tone))
+		# Every chunk shares exactly the same base tone. Overlap by two pixels so
+		# camera filtering and fractional scaling cannot reveal the joins.
+		draw_rect(Rect2(origin - Vector2(2, 2), Vector2(CHUNK_SIZE + 4, CHUNK_SIZE + 4)), Color("#1b472a"))
 		for blot in chunk.ground_blots:
 			var light: float = blot.light
 			draw_circle(blot.pos, blot.radius, Color(0.12 + light, 0.28 + light, 0.15 + light, 0.34))

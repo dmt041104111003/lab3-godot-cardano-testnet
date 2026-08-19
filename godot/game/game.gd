@@ -725,11 +725,13 @@ func _start_run() -> void:
 	current_health = max_health
 	current_quest = 0
 	run_starting = true
-	_in_play()
 	_show_screen("play")
-	call_deferred("_finish_run_start")
+	# Let the play HUD paint first; world asset imports are deliberately
+	# performed on the next idle frame so the button never appears frozen.
+	call_deferred("_start_world_after_play")
 
-func _finish_run_start() -> void:
+func _start_world_after_play() -> void:
+	_in_play()
 	run_starting = false
 
 func _in_play() -> void:

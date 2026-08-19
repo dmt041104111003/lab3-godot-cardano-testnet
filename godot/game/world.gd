@@ -98,11 +98,11 @@ func _ready() -> void:
 	swamp_tree_tall_tex = _safe_tex("res://assets/map_trees/tree_tower_tall.png")
 	enemy_tex = _safe_tex("res://assets/local_pack/characters/enemy_walk.png")
 	for kind in [1, 2, 3]:
-		goblin_idle.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Idle_without_shadow.png" % [kind, kind]))
-		goblin_run.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Run_without_shadow.png" % [kind, kind]))
-		goblin_hurt.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Hurt_without_shadow.png" % [kind, kind]))
-		goblin_attack.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Attack_without_shadow.png" % [kind, kind]))
-		goblin_dying.append(_safe_tex("res://assets/enemy/vampire%d/Vampires%d_Death_without_shadow.png" % [kind, kind]))
+		goblin_idle.append(_safe_tex("res://assets/quai_vat/%s/Front___Idle.png" % ("male" if kind == 1 else ("female" if kind == 2 else "chief"))))
+		goblin_run.append(_safe_tex("res://assets/quai_vat/%s/Front___Running.png" % ("male" if kind == 1 else ("female" if kind == 2 else "chief"))))
+		goblin_hurt.append(_safe_tex("res://assets/quai_vat/%s/Front___Hurt.png" % ("male" if kind == 1 else ("female" if kind == 2 else "chief"))))
+		goblin_attack.append(goblin_run.back())
+		goblin_dying.append(_safe_tex("res://assets/quai_vat/%s/Dying.png" % ("male" if kind == 1 else ("female" if kind == 2 else "chief"))))
 		plant_idle.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Idle_without_shadow.png" % [kind, kind]))
 		plant_attack.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Attack_without_shadow.png" % [kind, kind]))
 		plant_dying.append(_safe_tex("res://assets/trees/plant%d/Plant%d_Death_without_shadow.png" % [kind, kind]))
@@ -304,11 +304,11 @@ func _generate_map() -> void:
 		coin_positions.append(p)
 		occupied.append(p)
 	for i in range(MONSTER_TOTAL):
-		var p := _random_open_point(occupied, 190.0)
+		var p := _random_open_point(occupied, 220.0)
 		monster_positions.append(p)
 		occupied.append(p)
 	for i in range(13):
-		var tree_p := _random_open_point(occupied, 155.0)
+		var tree_p := _random_open_point(occupied, 185.0)
 		tree_positions.append(tree_p)
 		occupied.append(tree_p)
 	for i in range(3):
@@ -353,15 +353,20 @@ func _draw() -> void:
 			if hurt:
 				draw_circle(m.pos - Vector2(0, 44), 54, Color(1.0, 0.35, 0.25, 0.3))
 			draw_texture_rect_region(plant_tex, Rect2(m.pos - Vector2(46, 78), Vector2(92, 92)), Rect2(plant_frame * 64, 0, 64, 64))
+			var plant_hp_ratio: float = clampf(float(m.get("hp", 1)) / float(m.get("max_hp", 1)), 0.0, 1.0)
+			draw_rect(Rect2(m.pos + Vector2(-28, -94), Vector2(56, 7)), Color(0.05, 0.02, 0.03, 0.9))
+			draw_rect(Rect2(m.pos + Vector2(-27, -93), Vector2(54.0 * plant_hp_ratio, 5)), Color("#ff476f"))
 			continue
-		var attacking_vampire := time < float(m.get("attack_until", 0.0))
-		var texture: Texture2D = goblin_hurt[kind] if hurt else (goblin_attack[kind] if attacking_vampire else (goblin_run[kind] if m.dir.length() > 0.1 else goblin_idle[kind]))
-		var frame_w: int = 256
+		var texture: Texture2D = goblin_hurt[kind] if hurt else (goblin_run[kind] if m.dir.length() > 0.1 else goblin_idle[kind])
+		var frame_w: int = 192 if texture == goblin_idle[kind] else 240
 		var frame_count: int = maxi(1, texture.get_width() / frame_w)
 		var frame: int = int(time * (12.0 if hurt else 8.0)) % frame_count
 		if hurt:
 			draw_circle(m.pos - Vector2(0, 34), 48, Color(1.0, 0.35, 0.25, 0.3))
 		draw_texture_rect_region(texture, Rect2(m.pos - Vector2(40, 72), Vector2(80, 80)), Rect2(frame * frame_w, 0, frame_w, frame_w))
+		var hp_ratio: float = clampf(float(m.get("hp", 1)) / float(m.get("max_hp", 1)), 0.0, 1.0)
+		draw_rect(Rect2(m.pos + Vector2(-28, -86), Vector2(56, 7)), Color(0.05, 0.02, 0.03, 0.9))
+		draw_rect(Rect2(m.pos + Vector2(-27, -85), Vector2(54.0 * hp_ratio, 5)), Color("#ff476f"))
 	for m in dying_monsters:
 		var alpha := clampf(m.life / 0.55, 0.0, 1.0)
 		var kind: int = int(m.get("kind", 0))
@@ -430,9 +435,11 @@ func _build_monsters() -> void:
 	for i in range(monster_positions.size()):
 		var p: Vector2 = monster_positions[i]
 		var angle := map_rng.randf_range(0, TAU)
-		monsters.append({ "pos": p, "hp": 3 + (i % 3), "kind": i % 3, "dir": Vector2.from_angle(angle), "shoot_cd": map_rng.randf_range(0.4, 1.2), "attack_until": 0.0, "sprite": null })
+		var vampire_hp := 3 + (i % 3)
+		monsters.append({ "pos": p, "hp": vampire_hp, "max_hp": vampire_hp, "kind": i % 3, "dir": Vector2.from_angle(angle), "shoot_cd": map_rng.randf_range(0.4, 1.2), "attack_until": 0.0, "sprite": null })
 	for i in range(tree_positions.size()):
-		monsters.append({ "pos": tree_positions[i], "hp": 5 + (i % 3), "kind": i % 3, "dir": Vector2.ZERO, "shoot_cd": map_rng.randf_range(0.5, 1.3), "attack_until": 0.0, "plant": true, "sprite": null })
+		var plant_hp := 5 + (i % 3)
+		monsters.append({ "pos": tree_positions[i], "hp": plant_hp, "max_hp": plant_hp, "kind": i % 3, "dir": Vector2.ZERO, "shoot_cd": map_rng.randf_range(0.5, 1.3), "attack_until": 0.0, "plant": true, "sprite": null })
 
 func _wander_monsters(delta: float) -> void:
 	for m in monsters:
@@ -654,7 +661,7 @@ func _spawn_impact(pos: Vector2, fiery: bool) -> void:
 	if fiery:
 		fx = _spawn_skill_anim(skill_fire_spell, pos, 0.10, Color.WHITE, false)
 	else:
-		fx = _spawn_skill_anim(skill_water_spell, pos, 0.09, Color.WHITE, false)
+		fx = _spawn_skill_anim(skill_water_ball, pos, 0.075, Color.WHITE, false)
 	_spawn_ring(pos, impact_color, 62.0 if fiery else 48.0, 0.34, 5.0)
 	_spawn_ring(pos, Color(1, 1, 1, 0.82), 34.0, 0.20, 2.5)
 	var tw := create_tween()
